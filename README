@@ -1,0 +1,46 @@
+Cudza własność intelektualna
+========================================
+- parser (latte.y) oparty jest na kodzie Jakuba Martina,
+- build.rs (skrypt generujący parser na podstawie plików .l i .y) wzięty z tutoriala grmtools,
+
+
+Kompilacja
+========================================
+W systemie z dostępnym toolchainem rusta należy wykonać standardowe polecenie:
+    cargo build --release
+W systemie bez toolchainu rusta należy wykonać w katalogu projektu polecenie:
+    make
+Zainstaluje ono (`make`) rusta w lokalnym katalogu
+
+UWAGA: w przypadku instalacji rusta w lokalnym katalogu rozmiar katalogu po kompilacji programu osiąga rozmiar 1-1.5 GB
+
+
+Uruchamianie
+========================================
+kompilator:
+    target/release/latte FILEPATH [llvm|jvm]
+
+Zależności
+========================================
+biblioteka grmtools (https://softdevteam.github.io/grmtools/master/book/quickstart.html):
+    - cfgrammar,
+    - lrlex,
+    - lrpar,
+
+
+Struktura projektu:
+========================================
+.
+├── build.rs            - skrypt do statycznego generowania kodu parsera
+├── Cargo.lock          - lista zależności wraz z wersjami
+├── Cargo.toml          - specyfikacja crate'a (pakietu)
+├── latc_llvm           - wrapper na kompilator do LLVM
+├── lib
+│   └── jasmin.jar
+├── Makefile
+├── README
+└── src
+    ├── instant.l       - plik definiujący lexer
+    ├── instant.y       - plik definiujący parser
+    ├── llvm.rs         - moduł z funkcjami do kompilacji do LLVM
+    └── main.rs         - funkcja main(): obsługa CLI i inicjalizacja zmiennych dla funkcji z modułu

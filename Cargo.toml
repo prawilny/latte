@@ -1,0 +1,15 @@
+[package]
+name = "latte"
+version = "0.0.1"
+authors = ["Adam Czajkowski <a.c.czajkowski@gmail.com>"]
+edition = "2018"
+
+[build-dependencies]
+cfgrammar = "0.9"
+lrlex = "0.9"
+lrpar = "0.9"
+
+[dependencies]
+cfgrammar = "0.9"
+lrlex = "0.9"
+lrpar = "0.9"
