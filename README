@@ -18,7 +18,7 @@ UWAGA: w przypadku instalacji rusta w lokalnym katalogu rozmiar katalogu po komp
 Uruchamianie
 ========================================
 kompilator:
-    target/release/latte FILEPATH [llvm|jvm]
+    target/release/latte FILEPATH
 
 Zależności
 ========================================
