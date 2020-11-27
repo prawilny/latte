@@ -1,15 +1,15 @@
 %start Program
 %avoid_insert "INT"
 %%
-Program -> Result<Vec<Node<Statement>>, ()>:
+Program -> Result<Vec<Node<Stmt>>, ()>:
       Stmt {
         Ok(vec![$1?])
       }
     |
       Program ';' Stmt {
-        let mut statements = $1?;
-        statements.push($3?);
-        Ok(statements)
+        let mut stmts = $1?;
+        stmts.push($3?);
+        Ok(stmts)
       }
     ;
 
@@ -20,16 +20,16 @@ Ident -> Result<Node<Ident>, ()>:
       }
     ;
 
-Stmt -> Result<Node<Statement>, ()>:
+Stmt -> Result<Node<Stmt>, ()>:
       Ident '=' Expr {
           let ident = $1?;
           let expr = $3.map_err(|_| ())?;
-          Ok(Node::new(Span::new(ident.span().start(), expr.span().end()), Statement::Assignment(ident, expr)))
+          Ok(Node::new(Span::new(ident.span().start(), expr.span().end()), Stmt::Assignment(ident, expr)))
       }
     |
       Expr {
           let expr = $1?;
-          Ok(Node::new(Span::new(expr.span().start(), expr.span().end()), Statement::Expression(expr)))
+          Ok(Node::new(Span::new(expr.span().start(), expr.span().end()), Stmt::Expression(expr)))
       }
     ;
 
@@ -124,13 +124,44 @@ fn join_ast_spans<N1: Debug + Clone, N2: Debug + Clone>(start: &Result<Node<N1>,
     Ok(Span::new(start_ok.span().start(), end_ok.span().end()))
 }
 
+pub type Ident = String;
+
+pub type TopDef = (Node<Type>, Node<Ident>, Vec<Node<Arg>>, Node<Block>);
+
+pub type Block = (Vec<Node<Stmt>>);
+
+pub type Arg = (Node<Type>, Node<Ident>);
+
 #[derive(Debug, Clone)]
-pub enum Statement {
-    Assignment(Node<Ident>, Node<Expr>),
-    Expression(Node<Expr>),
+pub enum Stmt {
+  Empty,
+  Block(Node<Block>),
+  Decl(Node<Type>, Vec<Node<Item>>),
+  Asgn(Node<Ident>, Node<Expr>),
+  Ret(Node<Expr>),
+  VRet,
+  If(Node<Expr>, Box<Node<Stmt>>),
+  IfElse(Node<Expr>, Box<Node<Stmt>>, Box<Node<Stmt>>),
+  While(Node<Expr>, Box<Node<Stmt>>),
+  Expr(Node<Expr>),
 }
 
-pub type Ident = String;
+pub enum Item {
+  NoInit(Node<Ident>),
+  Init(Node<Ident>, Node<Expr>),
+}
+
+pub enum Type {
+  VType(Node<Prim>),
+  FType(Node<Prim>, Vec<Node<Prim>>),
+}
+
+pub enum Prim {
+  Int,
+  Str,
+  Void,
+  Bool,
+}
 
 #[derive(Debug, Clone)]
 pub enum Expr {
@@ -139,7 +170,7 @@ pub enum Expr {
     Bool(bool),
     Str(String),
 
-    App(Node<Ident>, Vec<Node<Ident>>)
+    App(Node<Ident>, Vec<Node<Ident>>),
     Neg(Box<Node<Expr>>),
     Not(Box<Node<Expr>>),
 
@@ -151,6 +182,7 @@ pub enum Expr {
 
     And(Box<Node<Expr>>, Box<Node<Expr>>),
     Or(Box<Node<Expr>>, Box<Node<Expr>>),
+
     LTH(Box<Node<Expr>>, Box<Node<Expr>>),
     LEQ(Box<Node<Expr>>, Box<Node<Expr>>),
     GEQ(Box<Node<Expr>>, Box<Node<Expr>>),
