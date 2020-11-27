@@ -2,9 +2,15 @@
 %avoid_insert "INT"
 %%
 Program -> Result<Vec<Node<Statement>>, ()>:
-      Stmt { Ok(vec![$1?]) }
+      Stmt {
+        Ok(vec![$1?])
+      }
     |
-      Program ';' Stmt { let mut statements = $1?; statements.push($3?); Ok(statements) }
+      Program ';' Stmt {
+        let mut statements = $1?;
+        statements.push($3?);
+        Ok(statements)
+      }
     ;
 
 Ident -> Result<Node<Ident>, ()>:
@@ -31,21 +37,35 @@ Expr -> Result<Node<Expr>, ()>:
       Expr1 { $1 }
     ;
 Expr1 -> Result<Node<Expr>, ()>:
-      Expr2 '+' Expr1 { Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::Add(Box::new($1?), Box::new($3?)))) }
+      Expr2 '+' Expr1 {
+        Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::Add(Box::new($1?), Box::new($3?))))
+      }
     |
-      Expr2 { $1 }
+      Expr2 {
+        $1
+      }
     ;
 Expr2 -> Result<Node<Expr>, ()>:
-      Expr2 '-' Expr3 { Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::Sub(Box::new($1?), Box::new($3?)))) }
+      Expr2 '-' Expr3 {
+        Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::Sub(Box::new($1?), Box::new($3?))))
+      }
     |
-      Expr3 { $1 }
+      Expr3 {
+        $1
+      }
     ;
 Expr3 -> Result<Node<Expr>, ()>:
-      Expr3 '*' Expr4 { Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::Mul(Box::new($1?), Box::new($3?)))) }
+      Expr3 '*' Expr4 {
+        Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::Mul(Box::new($1?), Box::new($3?))))
+      }
     |
-      Expr3 '/' Expr4 { Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::Div(Box::new($1?), Box::new($3?)))) }
+      Expr3 '/' Expr4 {
+        Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::Div(Box::new($1?), Box::new($3?))))
+      }
     |
-      Expr4 { $1 }
+      Expr4 {
+        $1
+      }
     ;
 Expr4 -> Result<Node<Expr>, ()>:
       'INT' {
@@ -59,12 +79,18 @@ Expr4 -> Result<Node<Expr>, ()>:
           Ok(Node::new(Span::new(sign.span().start(), v.span().end()), Expr::Const(-1 * parse_int($lexer.span_str(v.span()))?)))
       }
     |
-      Ident { Ok(Node::new($1.clone()?.span().clone(), Expr::Var($1?))) }
+      Ident {
+        Ok(Node::new($1.clone()?.span().clone(), Expr::Var($1?)))
+      }
     |
-      Expr5 { $1 }
+      Expr5 {
+        $1
+      }
     ;
 Expr5 -> Result<Node<Expr>, ()>:
-      '(' Expr ')' { $2 }
+      '(' Expr ')' {
+        $2
+      }
     ;
 %%
 // Any functions here are in scope for all the grammar actions above.
