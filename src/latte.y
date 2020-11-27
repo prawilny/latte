@@ -134,12 +134,29 @@ pub type Ident = String;
 
 #[derive(Debug, Clone)]
 pub enum Expr {
-    Const(i64),
     Var(Node<Ident>),
+    Int(i64),
+    Bool(bool),
+    Str(String),
+
+    App(Node<Ident>, Vec<Node<Ident>>)
+    Neg(Box<Node<Expr>>),
+    Not(Box<Node<Expr>>),
+
     Add(Box<Node<Expr>>, Box<Node<Expr>>),
     Sub(Box<Node<Expr>>, Box<Node<Expr>>),
     Mul(Box<Node<Expr>>, Box<Node<Expr>>),
     Div(Box<Node<Expr>>, Box<Node<Expr>>),
+    Mod(Box<Node<Expr>>, Box<Node<Expr>>),
+
+    And(Box<Node<Expr>>, Box<Node<Expr>>),
+    Or(Box<Node<Expr>>, Box<Node<Expr>>),
+    LTH(Box<Node<Expr>>, Box<Node<Expr>>),
+    LEQ(Box<Node<Expr>>, Box<Node<Expr>>),
+    GEQ(Box<Node<Expr>>, Box<Node<Expr>>),
+    GTH(Box<Node<Expr>>, Box<Node<Expr>>),
+    EQ(Box<Node<Expr>>, Box<Node<Expr>>),
+    NEQ(Box<Node<Expr>>, Box<Node<Expr>>),
 }
 
 fn parse_int(s: &str) -> Result<i64, ()> {
