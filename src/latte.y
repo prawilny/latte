@@ -207,36 +207,36 @@ pub type Arg = (Node<Type>, Node<Ident>);
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
-  Empty,
-  Block(Node<Block>),
-  Decl(Node<Type>, Vec<Node<Item>>),
-  Asgn(Node<Ident>, Node<Expr>),
-  Ret(Node<Expr>),
-  VRet,
-  If(Node<Expr>, Box<Node<Stmt>>),
-  IfElse(Node<Expr>, Box<Node<Stmt>>, Box<Node<Stmt>>),
-  While(Node<Expr>, Box<Node<Stmt>>),
-  Expr(Node<Expr>),
+    Empty,
+    Block(Node<Block>),
+    Decl(Node<Type>, Vec<Node<Item>>),
+    Asgn(Node<Ident>, Node<Expr>),
+    Ret(Node<Expr>),
+    VRet,
+    If(Node<Expr>, Box<Node<Stmt>>),
+    IfElse(Node<Expr>, Box<Node<Stmt>>, Box<Node<Stmt>>),
+    While(Node<Expr>, Box<Node<Stmt>>),
+    Expr(Node<Expr>),
 }
 
 #[derive(Debug, Clone)]
 pub enum Item {
-  NoInit(Node<Ident>),
-  Init(Node<Ident>, Node<Expr>),
+    NoInit(Node<Ident>),
+    Init(Node<Ident>, Node<Expr>),
 }
 
 #[derive(Debug, Clone)]
 pub enum Type {
-  VType(Node<Prim>),
-  FType(Node<Prim>, Vec<Node<Prim>>),
+    VType(Node<Prim>),
+    FType(Node<Prim>, Vec<Node<Prim>>),
 }
 
 #[derive(Debug, Clone)]
 pub enum Prim {
-  Int,
-  Str,
-  Void,
-  Bool,
+    Int,
+    Str,
+    Void,
+    Bool,
 }
 
 #[derive(Debug, Clone)]
