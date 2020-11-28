@@ -243,6 +243,23 @@ Prim -> Result<Node<Prim>, ()>:
       }
     ;
 
+Args -> Result<Vec<Node<Arg>>, ()>:
+      Arg {
+        Ok(vec![$1?])
+      }
+    |
+      Args ',' Arg {
+        let mut args = $1?;
+        args.push($3?);
+        Ok(args)
+      }
+    ;
+Arg -> Result<Node<Arg>, ()>:
+      Type Ident {
+        Ok(Node::new(join_ast_spans(&$1, &$2)?, ($1?, $2?)))
+      }
+    ;
+
 %%
 // Any functions here are in scope for all the grammar actions above.
 
