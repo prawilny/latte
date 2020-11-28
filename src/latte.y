@@ -44,7 +44,6 @@ Exprs -> Result<Vec<Node<Expr>>, ()>:
         Ok(exprs)
       }
     ;
-
 Expr -> Result<Node<Expr>, ()>:
       Expr0 { $1 }
     ;
@@ -155,6 +154,12 @@ Expr6 -> Result<Node<Expr>, ()>:
         Ok(Node::new(Span::new(ident.span().start(), rb.span().end()), Expr::App($1?, $3?)))
       }
     |
+      Ident '(' ')' {
+        let ident = $1?;
+        let rb = $3.map_err(|_| ())?;
+        Ok(Node::new(Span::new(ident.span().start(), rb.span().end()), Expr::App($1?, vec![])))
+      }
+    |
       Ident {
         Ok(Node::new($1.clone()?.span().clone(), Expr::Var($1?)))
       }
@@ -183,6 +188,61 @@ Expr7 -> Result<Node<Expr>, ()>:
         $2
       }
     ;
+
+Type -> Result<Node<Type>, ()>:
+      Prim {
+        let p = $1?;
+        Ok(Node::new(p.span().clone(), Type::VType(p.node().clone())))
+      }
+    |
+      Prim '(' Prims ')' {
+        let p = $1?;
+        let ps = $3?.iter().map(|p| p.node().clone()).collect();
+        let rb = $4.map_err(|_| ())?;
+
+        Ok(Node::new(Span::new(p.span().start(), rb.span().end()), Type::FType(p.node().clone(), ps)))
+      }
+    |
+      Prim '(' ')' {
+        let p = $1?;
+        let rb = $3.map_err(|_| ())?;
+        Ok(Node::new(Span::new(p.span().start(), rb.span().end()), Type::FType(p.node.clone(), vec![])))
+      }
+    ;
+
+Prims -> Result<Vec<Node<Prim>>, ()>:
+      Prim {
+        Ok(vec![$1?])
+      }
+    |
+      Prims ',' Prim {
+        let mut prims = $1?;
+        prims.push($3?);
+        Ok(prims)
+      }
+    ;
+Prim -> Result<Node<Prim>, ()>:
+      "INT" {
+        let p = $1.map_err(|_| ())?;
+        Ok(Node::new(p.span(), Prim::Int))
+      }
+    |
+      "STR" {
+        let p = $1.map_err(|_| ())?;
+        Ok(Node::new(p.span(), Prim::Str))
+      }
+    |
+      "BOOL" {
+        let p = $1.map_err(|_| ())?;
+        Ok(Node::new(p.span(), Prim::Bool))
+      }
+    |
+      "VOID" {
+        let p = $1.map_err(|_| ())?;
+        Ok(Node::new(p.span(), Prim::Void))
+      }
+    ;
+
 %%
 // Any functions here are in scope for all the grammar actions above.
 
@@ -245,8 +305,8 @@ pub enum Item {
 
 #[derive(Debug, Clone)]
 pub enum Type {
-    VType(Node<Prim>),
-    FType(Node<Prim>, Vec<Node<Prim>>),
+    VType(Prim),
+    FType(Prim, Vec<Prim>),
 }
 
 #[derive(Debug, Clone)]
