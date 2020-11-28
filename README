@@ -6,7 +6,7 @@ Cudza własność intelektualna
 
 Uwagi do języka
 ========================================
-TODO: uwaga o zagnieżdżaniu ifów (zagnieżdżanie tylko ifów tego samego typu (gdzie typ to obecność else))
+TODO: ify jak w https://en.wikipedia.org/wiki/Dangling_else#Avoiding_the_conflict_in_LR_parsers
 
 
 Kompilacja
