@@ -118,13 +118,13 @@ Expr5 -> Result<Node<Expr>, ()>:
       "-" Expr6 {
           let sign = $1.map_err(|_| ())?;
           let v = $2.map_err(|_| ())?;
-          Ok(Node::new(Span::new(sign.span().start(), v.span().end()), Expr::Neg(v)))
+          Ok(Node::new(Span::new(sign.span().start(), v.span().end()), Expr::Neg(Box::new(v))))
       }
     |
       "!" Expr6 {
           let sign = $1.map_err(|_| ())?;
           let v = $2.map_err(|_| ())?;
-          Ok(Node::new(Span::new(sign.span().start(), v.span().end()), Expr::Not(v)))
+          Ok(Node::new(Span::new(sign.span().start(), v.span().end()), Expr::Not(Box::new(v))))
       }
     |
       Expr6 {
@@ -137,20 +137,23 @@ Expr6 -> Result<Node<Expr>, ()>:
           Ok(Node::new(v.span(), Expr::Int(parse_int($lexer.span_str(v.span()))?)))
       }
     |
-      'IDENT' {
+      Ident {
         Ok(Node::new($1.clone()?.span().clone(), Expr::Var($1?)))
       }
     |
       'STRING' {
-        Ok(Node::new($1.clone()?.span().clone(), Expr::String($1?)))
+        let v = $1.map_err(|_| ())?;
+        Ok(Node::new(v.span(), Expr::Str($lexer.span_str(v.span()).to_string())))
       }
     |
       'TRUE' {
-        Ok(Node::new($1.clone()?.span().clone(), Expr::Bool(true)))
+        let v = $1.map_err(|_| ())?;
+        Ok(Node::new(v.span(), Expr::Bool(true)))
       }
     |
       'FALSE' {
-        Ok(Node::new($1.clone()?.span().clone(), Expr::Bool(false)))
+        let v = $1.map_err(|_| ())?;
+        Ok(Node::new(v.span(), Expr::Bool(false)))
       }
     |
       Expr7 {
@@ -238,7 +241,7 @@ pub enum Prim {
 
 #[derive(Debug, Clone)]
 pub enum Expr {
-    Var(Ident),
+    Var(Node<Ident>),
     Int(i64),
     Bool(bool),
     Str(String),
