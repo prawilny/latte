@@ -282,7 +282,7 @@ Item -> Result<Node<Item>, ()>:
         Ok(Node::new(ident.span().clone(), Item::NoInit(ident)))
       }
     |
-      Ident '==' Expr {
+      Ident '=' Expr {
         let ident = $1.map_err(|_| ())?;
         let expr = $3.map_err(|_| ())?;
         Ok(Node::new(Span::new(ident.span().start(), expr.span().end()), Item::Init(ident, expr)))
