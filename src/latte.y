@@ -33,6 +33,18 @@ Stmt -> Result<Node<Stmt>, ()>:
       }
     ;
 
+Exprs -> Result<Vec<Node<Expr>>, ()>:
+      Expr {
+        Ok(vec![$1?])
+      }
+    |
+      Exprs ',' Expr {
+        let mut exprs = $1?;
+        exprs.push($3?);
+        Ok(exprs)
+      }
+    ;
+
 Expr -> Result<Node<Expr>, ()>:
       Expr0 { $1 }
     ;
@@ -115,13 +127,13 @@ Expr4 -> Result<Node<Expr>, ()>:
       }
     ;
 Expr5 -> Result<Node<Expr>, ()>:
-      "-" Expr6 {
+      '-' Expr6 {
           let sign = $1.map_err(|_| ())?;
           let v = $2.map_err(|_| ())?;
           Ok(Node::new(Span::new(sign.span().start(), v.span().end()), Expr::Neg(Box::new(v))))
       }
     |
-      "!" Expr6 {
+      '!' Expr6 {
           let sign = $1.map_err(|_| ())?;
           let v = $2.map_err(|_| ())?;
           Ok(Node::new(Span::new(sign.span().start(), v.span().end()), Expr::Not(Box::new(v))))
@@ -135,6 +147,12 @@ Expr6 -> Result<Node<Expr>, ()>:
       'INTEGER' {
           let v = $1.map_err(|_| ())?;
           Ok(Node::new(v.span(), Expr::Int(parse_int($lexer.span_str(v.span()))?)))
+      }
+    |
+      Ident '(' Exprs ')' {
+        let ident = $1?;
+        let rb = $4.map_err(|_| ())?;
+        Ok(Node::new(Span::new(ident.span().start(), rb.span().end()), Expr::App($1?, $3?)))
       }
     |
       Ident {
@@ -246,7 +264,7 @@ pub enum Expr {
     Bool(bool),
     Str(String),
 
-    App(Node<Ident>, Vec<Node<Ident>>),
+    App(Node<Ident>, Vec<Node<Expr>>),
     Neg(Box<Node<Expr>>),
     Not(Box<Node<Expr>>),
 
