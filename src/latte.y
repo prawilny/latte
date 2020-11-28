@@ -275,13 +275,13 @@ pub enum Expr {
     Mod(Box<Node<Expr>>, Box<Node<Expr>>),
 
     And(Box<Node<Expr>>, Box<Node<Expr>>),
-    Or(Box<Node<Expr>>, Box<Node<Expr>>),
+    Or (Box<Node<Expr>>, Box<Node<Expr>>),
 
     LTH(Box<Node<Expr>>, Box<Node<Expr>>),
     LEQ(Box<Node<Expr>>, Box<Node<Expr>>),
     GEQ(Box<Node<Expr>>, Box<Node<Expr>>),
     GTH(Box<Node<Expr>>, Box<Node<Expr>>),
-    EQ(Box<Node<Expr>>, Box<Node<Expr>>),
+    EQ (Box<Node<Expr>>, Box<Node<Expr>>),
     NEQ(Box<Node<Expr>>, Box<Node<Expr>>),
 }
 
