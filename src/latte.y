@@ -347,6 +347,31 @@ Stmt -> Result<Node<Stmt>, ()>:
         let semi = $2.map_err(|_| ())?;
         Ok(Node::new(Span::new(expr.span().start(), semi.span().end()), Stmt::Expr(expr)))
       }
+    |
+      'IF' '(' Expr ')' Stmt 'ELSE' Stmt {
+        let if_ = $1.map_err(|_| ())?;
+        let expr = $3.map_err(|_| ())?;
+        let if_stmt = Box::new($5.map_err(|_| ())?);
+        let else_stmt = Box::new($7.map_err(|_| ())?);
+
+        Ok(Node::new(Span::new(if_.span().start(), else_stmt.span().end()), Stmt::IfElse(expr, if_stmt, else_stmt)))
+      }
+    |
+      'IF' '(' Expr ')' Stmt {
+        let if_ = $1.map_err(|_| ())?;
+        let expr = $3.map_err(|_| ())?;
+        let stmt = Box::new($5.map_err(|_| ())?);
+
+        Ok(Node::new(Span::new(if_.span().start(), stmt.span().end()), Stmt::If(expr, stmt)))
+      }
+    |
+      'WHILE' '(' Expr ')' Stmt {
+        let while_ = $1.map_err(|_| ())?;
+        let expr = $3.map_err(|_| ())?;
+        let stmt = Box::new($5.map_err(|_| ())?);
+
+        Ok(Node::new(Span::new(while_.span().start(), stmt.span().end()), Stmt::While(expr, stmt)))
+      }
     ;
 
 %%
