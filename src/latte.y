@@ -260,6 +260,27 @@ Arg -> Result<Node<Arg>, ()>:
       }
     ;
 
+Items -> Result<Vec<Node<Item>>, ()>:
+      Item {
+        Ok(vec![$1?])
+      }
+    |
+      Items ',' Item {
+        let mut items = $1?;
+        items.push($3?);
+        Ok(items)
+      }
+    ;
+Item -> Result<Node<Item>, ()>:
+      Ident {
+        Ok(Node::new($1?.span().clone(), Item::NoInit($1?)))
+      }
+    |
+      Ident '==' Expr {
+        Ok(Node::new(join_ast_spans(&$1, &$3)?, Item::Init($1?, $3?)))
+      }
+  ;
+
 %%
 // Any functions here are in scope for all the grammar actions above.
 
