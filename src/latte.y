@@ -319,6 +319,29 @@ Stmt -> Result<Node<Stmt>, ()>:
         Ok(Node::new(join_ast_spans(&$1, &$3)?, Stmt::Asgn($1?, $3?)))
       }
     |
+      Ident '++' ';' {
+        let ident = $1.map_err(|_| ())?;
+        Ok(Node::new(ident.span().clone(), Stmt::Incr(ident)))
+      }
+    |
+      Ident '--' ';' {
+        let ident = $1.map_err(|_| ())?;
+        Ok(Node::new(ident.span().clone(), Stmt::Decr(ident)))
+      }
+    |
+      "RETURN" ';' {
+        let ret = $1.map_err(|_| ())?;
+        let semi = $2.map_err(|_| ())?;
+        Ok(Node::new(Span::new(ret.span().start(), semi.span().end()), Stmt::VRet))
+      }
+    |
+      "RETURN" Expr ';' {
+        let ret = $1.map_err(|_| ())?;
+        let expr = $2.map_err(|_| ())?;
+        let semi = $3.map_err(|_| ())?;
+        Ok(Node::new(Span::new(ret.span().start(), semi.span().end()), Stmt::Ret(expr)))
+      }
+    |
       Expr ';' {
         let expr = $1.map_err(|_| ())?;
         let semi = $2.map_err(|_| ())?;
@@ -372,6 +395,8 @@ pub enum Stmt {
     Block(Node<Block>),
     Decl(Node<Type>, Vec<Node<Item>>),
     Asgn(Node<Ident>, Node<Expr>),
+    Incr(Node<Ident>),
+    Decr(Node<Ident>),
     Ret(Node<Expr>),
     VRet,
     If(Node<Expr>, Box<Node<Stmt>>),
