@@ -34,11 +34,21 @@ Stmt -> Result<Node<Stmt>, ()>:
     ;
 
 Expr -> Result<Node<Expr>, ()>:
-      Expr1 { $1 }
+      Expr0 { $1 }
+    ;
+
+Expr0 -> Result<Node<Expr>, ()>:
+      Expr1 '||' Expr0 {
+        Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::Or(Box::new($1?), Box::new($3?))))
+      }
+    |
+      Expr1 {
+        $1
+      }
     ;
 Expr1 -> Result<Node<Expr>, ()>:
-      Expr2 '+' Expr1 {
-        Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::Add(Box::new($1?), Box::new($3?))))
+      Expr2 '&&' Expr1 {
+        Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::And(Box::new($1?), Box::new($3?))))
       }
     |
       Expr2 {
@@ -46,8 +56,28 @@ Expr1 -> Result<Node<Expr>, ()>:
       }
     ;
 Expr2 -> Result<Node<Expr>, ()>:
-      Expr2 '-' Expr3 {
-        Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::Sub(Box::new($1?), Box::new($3?))))
+      Expr2 '<=' Expr3 {
+        Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::LEQ(Box::new($1?), Box::new($3?))))
+      }
+    |
+      Expr2 '>=' Expr3 {
+        Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::GEQ(Box::new($1?), Box::new($3?))))
+      }
+    |
+      Expr2 '<' Expr3 {
+        Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::LTH(Box::new($1?), Box::new($3?))))
+      }
+    |
+      Expr2 '>' Expr3 {
+        Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::GTH(Box::new($1?), Box::new($3?))))
+      }
+    |
+      Expr2 '==' Expr3 {
+        Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::EQ(Box::new($1?), Box::new($3?))))
+      }
+    |
+      Expr2 '!=' Expr3 {
+        Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::NEQ(Box::new($1?), Box::new($3?))))
       }
     |
       Expr3 {
@@ -55,12 +85,12 @@ Expr2 -> Result<Node<Expr>, ()>:
       }
     ;
 Expr3 -> Result<Node<Expr>, ()>:
-      Expr3 '*' Expr4 {
-        Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::Mul(Box::new($1?), Box::new($3?))))
+      Expr3 '+' Expr4 {
+        Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::Add(Box::new($1?), Box::new($3?))))
       }
     |
-      Expr3 '/' Expr4 {
-        Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::Div(Box::new($1?), Box::new($3?))))
+      Expr3 '-' Expr4 {
+        Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::Sub(Box::new($1?), Box::new($3?))))
       }
     |
       Expr4 {
@@ -68,19 +98,16 @@ Expr3 -> Result<Node<Expr>, ()>:
       }
     ;
 Expr4 -> Result<Node<Expr>, ()>:
-      'INT' {
-          let v = $1.map_err(|_| ())?;
-          Ok(Node::new(v.span(), Expr::Const(parse_int($lexer.span_str(v.span()))?)))
+      Expr4 '*' Expr5 {
+        Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::Mul(Box::new($1?), Box::new($3?))))
       }
     |
-      '-' 'INT' {
-          let sign = $1.map_err(|_| ())?;
-          let v = $2.map_err(|_| ())?;
-          Ok(Node::new(Span::new(sign.span().start(), v.span().end()), Expr::Const(-1 * parse_int($lexer.span_str(v.span()))?)))
+      Expr4 '/' Expr5 {
+        Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::Div(Box::new($1?), Box::new($3?))))
       }
     |
-      Ident {
-        Ok(Node::new($1.clone()?.span().clone(), Expr::Var($1?)))
+      Expr4 '%' Expr5 {
+        Ok(Node::new(join_ast_spans(&$1, &$3)?, Expr::Mod(Box::new($1?), Box::new($3?))))
       }
     |
       Expr5 {
@@ -88,6 +115,49 @@ Expr4 -> Result<Node<Expr>, ()>:
       }
     ;
 Expr5 -> Result<Node<Expr>, ()>:
+      "-" Expr6 {
+          let sign = $1.map_err(|_| ())?;
+          let v = $2.map_err(|_| ())?;
+          Ok(Node::new(Span::new(sign.span().start(), v.span().end()), Expr::Neg(v)))
+      }
+    |
+      "!" Expr6 {
+          let sign = $1.map_err(|_| ())?;
+          let v = $2.map_err(|_| ())?;
+          Ok(Node::new(Span::new(sign.span().start(), v.span().end()), Expr::Not(v)))
+      }
+    |
+      Expr6 {
+        $1
+      }
+    ;
+Expr6 -> Result<Node<Expr>, ()>:
+      'INTEGER' {
+          let v = $1.map_err(|_| ())?;
+          Ok(Node::new(v.span(), Expr::Int(parse_int($lexer.span_str(v.span()))?)))
+      }
+    |
+      'IDENT' {
+        Ok(Node::new($1.clone()?.span().clone(), Expr::Var($1?)))
+      }
+    |
+      'STRING' {
+        Ok(Node::new($1.clone()?.span().clone(), Expr::String($1?)))
+      }
+    |
+      'TRUE' {
+        Ok(Node::new($1.clone()?.span().clone(), Expr::Bool(true)))
+      }
+    |
+      'FALSE' {
+        Ok(Node::new($1.clone()?.span().clone(), Expr::Bool(false)))
+      }
+    |
+      Expr7 {
+        $1
+      }
+    ;
+Expr7 -> Result<Node<Expr>, ()>:
       '(' Expr ')' {
         $2
       }
@@ -128,7 +198,7 @@ pub type Ident = String;
 
 pub type TopDef = (Node<Type>, Node<Ident>, Vec<Node<Arg>>, Node<Block>);
 
-pub type Block = (Vec<Node<Stmt>>);
+pub type Block = Vec<Node<Stmt>>;
 
 pub type Arg = (Node<Type>, Node<Ident>);
 
@@ -146,16 +216,19 @@ pub enum Stmt {
   Expr(Node<Expr>),
 }
 
+#[derive(Debug, Clone)]
 pub enum Item {
   NoInit(Node<Ident>),
   Init(Node<Ident>, Node<Expr>),
 }
 
+#[derive(Debug, Clone)]
 pub enum Type {
   VType(Node<Prim>),
   FType(Node<Prim>, Vec<Node<Prim>>),
 }
 
+#[derive(Debug, Clone)]
 pub enum Prim {
   Int,
   Str,
@@ -165,7 +238,7 @@ pub enum Prim {
 
 #[derive(Debug, Clone)]
 pub enum Expr {
-    Var(Node<Ident>),
+    Var(Ident),
     Int(i64),
     Bool(bool),
     Str(String),
