@@ -210,22 +210,22 @@ Prims -> Result<Vec<Node<Prim>>, ()>:
       }
     ;
 Prim -> Result<Node<Prim>, ()>:
-      "INT" {
+      'INT' {
         let p = $1.map_err(|_| ())?;
         Ok(Node::new(p.span(), Prim::Int))
       }
     |
-      "STR" {
+      'STR' {
         let p = $1.map_err(|_| ())?;
         Ok(Node::new(p.span(), Prim::Str))
       }
     |
-      "BOOL" {
+      'BOOL' {
         let p = $1.map_err(|_| ())?;
         Ok(Node::new(p.span(), Prim::Bool))
       }
     |
-      "VOID" {
+      'VOID' {
         let p = $1.map_err(|_| ())?;
         Ok(Node::new(p.span(), Prim::Void))
       }
@@ -329,13 +329,13 @@ Stmt -> Result<Node<Stmt>, ()>:
         Ok(Node::new(ident.span().clone(), Stmt::Decr(ident)))
       }
     |
-      "RETURN" ';' {
+      'RETURN' ';' {
         let ret = $1.map_err(|_| ())?;
         let semi = $2.map_err(|_| ())?;
         Ok(Node::new(Span::new(ret.span().start(), semi.span().end()), Stmt::VRet))
       }
     |
-      "RETURN" Expr ';' {
+      'RETURN' Expr ';' {
         let ret = $1.map_err(|_| ())?;
         let expr = $2.map_err(|_| ())?;
         let semi = $3.map_err(|_| ())?;
