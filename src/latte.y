@@ -1,15 +1,15 @@
-%start Program
+%start TopDefs
 %avoid_insert "INT"
 %%
-Program -> Result<Vec<Node<Stmt>>, ()>:
+TopDefs -> Result<Vec<Node<Stmt>>, ()>:
       Stmt {
         Ok(vec![$1?])
       }
     |
-      Program ';' Stmt {
-        let mut stmts = $1?;
-        stmts.push($3?);
-        Ok(stmts)
+      TopDefs Stmt {
+        let mut tds = $1?;
+        tds.push($2?);
+        Ok(tds)
       }
     ;
 
@@ -17,19 +17,6 @@ Ident -> Result<Node<Ident>, ()>:
       'IDENT' {
           let v = $1.map_err(|_| ())?;
           Ok(Node::new(v.span(), $lexer.span_str(v.span()).to_string()))
-      }
-    ;
-
-Stmt -> Result<Node<Stmt>, ()>:
-      Ident '=' Expr {
-          let ident = $1?;
-          let expr = $3.map_err(|_| ())?;
-          Ok(Node::new(Span::new(ident.span().start(), expr.span().end()), Stmt::Assignment(ident, expr)))
-      }
-    |
-      Expr {
-          let expr = $1?;
-          Ok(Node::new(Span::new(expr.span().start(), expr.span().end()), Stmt::Expression(expr)))
       }
     ;
 
@@ -151,17 +138,18 @@ Expr6 -> Result<Node<Expr>, ()>:
       Ident '(' Exprs ')' {
         let ident = $1?;
         let rb = $4.map_err(|_| ())?;
-        Ok(Node::new(Span::new(ident.span().start(), rb.span().end()), Expr::App($1?, $3?)))
+        Ok(Node::new(Span::new(ident.span().start(), rb.span().end()), Expr::App(ident, $3?)))
       }
     |
       Ident '(' ')' {
         let ident = $1?;
         let rb = $3.map_err(|_| ())?;
-        Ok(Node::new(Span::new(ident.span().start(), rb.span().end()), Expr::App($1?, vec![])))
+        Ok(Node::new(Span::new(ident.span().start(), rb.span().end()), Expr::App(ident, vec![])))
       }
     |
       Ident {
-        Ok(Node::new($1.clone()?.span().clone(), Expr::Var($1?)))
+        let v = $1.map_err(|_| ())?;
+        Ok(Node::new(v.span().clone(), Expr::Var(v)))
       }
     |
       'STRING' {
@@ -273,13 +261,70 @@ Items -> Result<Vec<Node<Item>>, ()>:
     ;
 Item -> Result<Node<Item>, ()>:
       Ident {
-        Ok(Node::new($1?.span().clone(), Item::NoInit($1?)))
+        let ident = $1.map_err(|_| ())?;
+        Ok(Node::new(ident.span().clone(), Item::NoInit(ident)))
       }
     |
       Ident '==' Expr {
-        Ok(Node::new(join_ast_spans(&$1, &$3)?, Item::Init($1?, $3?)))
+        let ident = $1.map_err(|_| ())?;
+        let expr = $3.map_err(|_| ())?;
+        Ok(Node::new(Span::new(ident.span().start(), expr.span().end()), Item::Init(ident, expr)))
       }
   ;
+
+Block -> Result<Node<Block>, ()>:
+      '{' '}' {
+        let lb = $1.map_err(|_| ())?;
+        let rb = $2.map_err(|_| ())?;
+        Ok(Node::new(Span::new(lb.span().start(), rb.span().end()), vec![]))
+      }
+    |
+      '{' Stmts '}' {
+        let lb = $1.map_err(|_| ())?;
+        let rb = $3.map_err(|_| ())?;
+        Ok(Node::new(Span::new(lb.span().start(), rb.span().end()), $2?))
+      }
+    ;
+
+Stmts -> Result<Vec<Node<Stmt>>, ()>:
+      Stmt {
+        Ok(vec![$1?])
+      }
+    |
+      Stmts Stmt {
+        let mut stmts = $1?;
+        stmts.push($2?);
+        Ok(stmts)
+      }
+    ;
+Stmt -> Result<Node<Stmt>, ()>:
+      ';' {
+        let semi = $1.map_err(|_| ())?;
+        Ok(Node::new(semi.span().clone(), Stmt::Empty))
+      }
+    |
+      Block {
+        let block = $1.map_err(|_| ())?;
+        Ok(Node::new(block.span().clone(), Stmt::Block(block)))
+      }
+    |
+      Type Items ';' {
+        let t = $1.map_err(|_| ())?;
+        let items = $2.map_err(|_| ())?;
+        let semi = $3.map_err(|_| ())?;
+        Ok(Node::new(Span::new(t.span().start(), semi.span().end()), Stmt::Decl(t, items)))
+      }
+    |
+      Ident '=' Expr ';' {
+        Ok(Node::new(join_ast_spans(&$1, &$3)?, Stmt::Asgn($1?, $3?)))
+      }
+    |
+      Expr ';' {
+        let expr = $1.map_err(|_| ())?;
+        let semi = $2.map_err(|_| ())?;
+        Ok(Node::new(Span::new(expr.span().start(), semi.span().end()), Stmt::Expr(expr)))
+      }
+    ;
 
 %%
 // Any functions here are in scope for all the grammar actions above.
