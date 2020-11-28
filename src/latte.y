@@ -1,15 +1,32 @@
 %start TopDefs
 %avoid_insert "INT"
 %%
-TopDefs -> Result<Vec<Node<Stmt>>, ()>:
-      Stmt {
+
+TopDefs -> Result<Vec<Node<TopDef>>, ()>:
+      TopDef {
         Ok(vec![$1?])
       }
     |
-      TopDefs Stmt {
+      TopDefs TopDef {
         let mut tds = $1?;
         tds.push($2?);
         Ok(tds)
+      }
+    ;
+TopDef -> Result<Node<TopDef>, ()>:
+      Type Ident '(' ')' Block {
+        let t = $1.map_err(|_| ())?;
+        let ident = $2.map_err(|_| ())?;
+        let block = $5.map_err(|_| ())?;
+        Ok(Node::new(Span::new(t.span().start(), block.span().end()), (t, ident, vec![], block)))
+      }
+    |
+      Type Ident '(' Args ')' Block {
+        let t = $1.map_err(|_| ())?;
+        let ident = $2.map_err(|_| ())?;
+        let args = $4.map_err(|_| ())?;
+        let block = $6.map_err(|_| ())?;
+        Ok(Node::new(Span::new(t.span().start(), block.span().end()), (t, ident, args, block)))
       }
     ;
 
