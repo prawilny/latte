@@ -60,7 +60,21 @@ pub fn check_types(fdefs: &Vec<ast::Node<ast::FunDef>>, source: &str) -> Result<
 }
 
 pub fn check_expr(expr: &ast::Node<ast::Expr>, mut venv: &mut VEnv, fenv: &FEnv, source: &str) -> Result<ast::Prim, String> {
-    Ok(ast::Prim::Void)
+    match expr.node() {
+        ast::Expr::Var(ident_node) => {
+            match venv.vget(ident_node.node()) {
+                Some(prim) => Ok(prim),
+                None => {
+                    Err(undeclared_var_msg(source, ident_node.span()))
+                }
+            }
+        },
+        ast::Expr::Int(_) => Ok(ast::Prim::Int),
+        ast::Expr::Bool(_) => Ok(ast::Prim::Bool),
+        ast::Expr::Str(_) => Ok(ast::Prim::Str),
+        _ => Ok(ast::Prim::Void),
+    }
+
 }
 
 pub fn check_block(stmts: &Vec<ast::Node<ast::Stmt>>, mut venv: &mut VEnv, fenv: &FEnv, source: &str) -> Result<Option<ast::Prim>, String> {
