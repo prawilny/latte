@@ -21,6 +21,10 @@ pub fn check_types(fdefs: &Vec<ast::Node<ast::FunDef>>, source: &str) -> Result<
     Ok(())
 }
 
+pub fn type_mismatch_msg(expected_type: ast::Prim, actual_type: &ast::Prim, source: &str, span: &Span) -> String {
+    format!("type mismatch at '{}': expected {}, got {}", source_token(source, span), expected_type, actual_type)
+}
+
 pub fn check_expr(expr: &ast::Node<ast::Expr>, mut venv: &mut VEnv, fenv: &FEnv, source: &str) -> Result<ast::Prim, String> {
     Ok(ast::Prim::Void)
 }
@@ -34,29 +38,37 @@ pub fn check_stmts(stmts: &Vec<ast::Node<ast::Stmt>>, mut venv: &mut VEnv, fenv:
 
 pub fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv, source: &str) -> Result<(), String> {
     match stmt.node() {
-        ast::Stmt::Block(block_node) => {
-            check_stmts(block_node.node(), &mut venv, fenv, source)
-        },
+        ast::Stmt::Empty => Ok(()),
+        ast::Stmt::Block(block_node) => check_stmts(block_node.node(), &mut venv, fenv, source),
+        ast::Stmt::VRet => Ok(()),
         ast::Stmt::Decl(prim_node, item_nodes) => {
             Ok(())
         },
         ast::Stmt::Asgn(ident_node, expr_node) => {
             Ok(())
         },
-        ast::Stmt::Incr(ident_node) => {
-            Ok(())
-        },
-        ast::Stmt::Decr(ident_node) => {
-            Ok(())
+        ast::Stmt::Incr(ident_node) | ast::Stmt::Decr(ident_node) => {
+            let ident = ident_node.node().clone();
+            match venv.get(&ident) {
+                Some(ast::Prim::Int) => Ok(()),
+                Some(prim) => Err(type_mismatch_msg(ast::Prim::Int, prim, source, ident_node.span())),
+                None => {
+                    venv.insert(ident, ast::Prim::Int);
+                    Ok(())
+                }
+            }
         },
         ast::Stmt::Ret(expr_node) => {
-            Ok(())
-        },
-        ast::Stmt::VRet => {
+            check_expr(&expr_node, &mut venv, fenv, source)?;
             Ok(())
         },
         ast::Stmt::If(expr_node, stmt_node) => {
-            Ok(())
+            let expr_prim = check_expr(&expr_node, &mut venv, fenv, source)?;
+            if expr_prim == ast::Prim::Bool {
+                check_stmt(&stmt_node, &mut venv, fenv, source)
+            } else {
+                Err(type_mismatch_msg(ast::Prim::Bool, &expr_prim, source, expr_node.span()))
+            }
         },
         ast::Stmt::IfElse(expr_node, stmt1_nodem, stmt2_node) => {
             Ok(())
@@ -67,7 +79,6 @@ pub fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv,
         ast::Stmt::Expr(expr_node) => {
             Ok(())
         },
-        ast::Stmt::Empty => Ok(()),
     }
 }
 
