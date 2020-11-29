@@ -41,6 +41,14 @@ pub fn source_token(source: &str, span: &Span) -> String {
     source.get(span.start()..span.end()).unwrap().to_string()
 }
 
+pub fn undeclared_var_msg(source: &str, span: &Span) -> String {
+    format!("use of undeclared variable {}", source_token(source, span))
+}
+
+pub fn type_mismatch_msg(expected_type: ast::Prim, actual_type: &ast::Prim, source: &str, span: &Span) -> String {
+    format!("type mismatch at '{}': expected {}, got {}", source_token(source, span), expected_type, actual_type)
+}
+
 pub fn check_types(fdefs: &Vec<ast::Node<ast::FunDef>>, source: &str) -> Result<(), String> {
     let env = fn_env(fdefs, source)?;
 
@@ -49,14 +57,6 @@ pub fn check_types(fdefs: &Vec<ast::Node<ast::FunDef>>, source: &str) -> Result<
     }
 
     Ok(())
-}
-
-pub fn undeclared_var_msg(source: &str, span: &Span) -> String {
-    format!("use of undeclared variable {}", source_token(source, span))
-}
-
-pub fn type_mismatch_msg(expected_type: ast::Prim, actual_type: &ast::Prim, source: &str, span: &Span) -> String {
-    format!("type mismatch at '{}': expected {}, got {}", source_token(source, span), expected_type, actual_type)
 }
 
 pub fn check_expr(expr: &ast::Node<ast::Expr>, mut venv: &mut VEnv, fenv: &FEnv, source: &str) -> Result<ast::Prim, String> {
