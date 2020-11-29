@@ -61,6 +61,30 @@ pub fn check_types(fdefs: &Vec<ast::Node<ast::FunDef>>, source: &str) -> Result<
 
 pub fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, fenv: &FEnv, source: &str) -> Result<ast::Prim, String> {
     match expr.node() {
+        ast::Expr::App(ident_node, expr_nodes) => {
+            let (fun_type, fun_arg_types) = match fenv.get(ident_node.node()) {
+                None => {
+                    let msg = format!("use of undeclared function {}", source_token(source, ident_node.span()));
+                    return Err(msg);
+                }
+                Some(ft) => ft,
+            };
+
+            if fun_arg_types.len() != expr_nodes.len() {
+                let msg = format!("use of {}-argument function with {} arguments",
+                    fun_arg_types.len(), expr_nodes.len());
+                return Err(msg);
+            }
+
+            for (arg_prim, expr_node) in fun_arg_types.iter().zip(expr_nodes.iter()) {
+                let expr_prim = check_expr(expr_node, venv, fenv, source)?;
+                if expr_prim != *arg_prim {
+                    return Err(type_mismatch_msg(arg_prim.clone(), &expr_prim, source, expr_node.span()))
+                }
+            }
+
+            Ok(fun_type.clone())
+        },
         ast::Expr::Var(ident_node) => {
             match venv.vget(ident_node.node()) {
                 Some(prim) => Ok(prim),
@@ -115,7 +139,6 @@ pub fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, fenv: &FEnv, source:
                 prim => Err(type_mismatch_msg(ast::Prim::Int, &prim, source, expr1_node.span())),
             }
         }
-        _ => Ok(ast::Prim::Void),
     }
 
 }
