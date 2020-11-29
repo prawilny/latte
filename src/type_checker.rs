@@ -39,8 +39,8 @@ pub fn check_stmts(stmts: &Vec<ast::Node<ast::Stmt>>, mut venv: &mut VEnv, fenv:
 pub fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv, source: &str) -> Result<(), String> {
     match stmt.node() {
         ast::Stmt::Empty => Ok(()),
-        ast::Stmt::Block(block_node) => check_stmts(block_node.node(), &mut venv, fenv, source),
         ast::Stmt::VRet => Ok(()),
+        ast::Stmt::Block(block_node) => check_stmts(block_node.node(), &mut venv, fenv, source),
         ast::Stmt::Decl(prim_node, item_nodes) => {
             Ok(())
         },
@@ -58,11 +58,11 @@ pub fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv,
                 }
             }
         },
-        ast::Stmt::Ret(expr_node) => {
+        ast::Stmt::Expr(expr_node) | ast::Stmt::Ret(expr_node) => {
             check_expr(&expr_node, &mut venv, fenv, source)?;
             Ok(())
         },
-        ast::Stmt::If(expr_node, stmt_node) => {
+        ast::Stmt::If(expr_node, stmt_node) | ast::Stmt::While(expr_node, stmt_node) => {
             let expr_prim = check_expr(&expr_node, &mut venv, fenv, source)?;
             if expr_prim == ast::Prim::Bool {
                 check_stmt(&stmt_node, &mut venv, fenv, source)
@@ -70,19 +70,19 @@ pub fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv,
                 Err(type_mismatch_msg(ast::Prim::Bool, &expr_prim, source, expr_node.span()))
             }
         },
-        ast::Stmt::IfElse(expr_node, stmt1_nodem, stmt2_node) => {
-            Ok(())
-        },
-        ast::Stmt::While(expr_node, stmt_node) => {
-            Ok(())
-        },
-        ast::Stmt::Expr(expr_node) => {
-            Ok(())
+        ast::Stmt::IfElse(expr_node, stmt1_node, stmt2_node) => {
+            let expr_prim = check_expr(&expr_node, &mut venv, fenv, source)?;
+            if expr_prim == ast::Prim::Bool {
+                check_stmt(&stmt1_node, &mut venv, fenv, source)?;
+                check_stmt(&stmt2_node, &mut venv, fenv, source)
+            } else {
+                Err(type_mismatch_msg(ast::Prim::Bool, &expr_prim, source, expr_node.span()))
+            }
         },
     }
 }
 
-// argument zdublowany lub przesłania funkcję
+// w tym momencie żądam returna na końcu funkcji typu różnego niż void
 pub fn check_fn(fdef: &ast::Node<ast::FunDef>, fenv: &FEnv, source: &str) -> Result<(), String> {
     let mut venv = HashMap::new();
 
