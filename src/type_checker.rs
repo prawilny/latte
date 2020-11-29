@@ -1,3 +1,5 @@
+// TODO: node() => data()
+
 use std::collections::HashMap;
 use crate::latte_y as ast;
 use crate::Span;
@@ -19,19 +21,61 @@ pub fn check_types(fdefs: &Vec<ast::Node<ast::FunDef>>, source: &str) -> Result<
     Ok(())
 }
 
-pub fn check_expr(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv, source: &str) -> Result<(), String> {
+pub fn check_expr(expr: &ast::Node<ast::Expr>, mut venv: &mut VEnv, fenv: &FEnv, source: &str) -> Result<ast::Prim, String> {
+    Ok(ast::Prim::Void)
+}
+
+pub fn check_stmts(stmts: &Vec<ast::Node<ast::Stmt>>, mut venv: &mut VEnv, fenv: &FEnv, source: &str) -> Result<(), String> {
+    for stmt in stmts {
+        check_stmt(&stmt, &mut venv, fenv, source)?;
+    }
     Ok(())
 }
 
 pub fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv, source: &str) -> Result<(), String> {
-    Ok(())
+    match stmt.node() {
+        ast::Stmt::Block(block_node) => {
+            check_stmts(block_node.node(), &mut venv, fenv, source)
+        },
+        ast::Stmt::Decl(prim_node, item_nodes) => {
+            Ok(())
+        },
+        ast::Stmt::Asgn(ident_node, expr_node) => {
+            Ok(())
+        },
+        ast::Stmt::Incr(ident_node) => {
+            Ok(())
+        },
+        ast::Stmt::Decr(ident_node) => {
+            Ok(())
+        },
+        ast::Stmt::Ret(expr_node) => {
+            Ok(())
+        },
+        ast::Stmt::VRet => {
+            Ok(())
+        },
+        ast::Stmt::If(expr_node, stmt_node) => {
+            Ok(())
+        },
+        ast::Stmt::IfElse(expr_node, stmt1_nodem, stmt2_node) => {
+            Ok(())
+        },
+        ast::Stmt::While(expr_node, stmt_node) => {
+            Ok(())
+        },
+        ast::Stmt::Expr(expr_node) => {
+            Ok(())
+        },
+        ast::Stmt::Empty => Ok(()),
+    }
 }
 
 // argument zdublowany lub przesłania funkcję
 pub fn check_fn(fdef: &ast::Node<ast::FunDef>, fenv: &FEnv, source: &str) -> Result<(), String> {
     let mut venv = HashMap::new();
 
-    let (_, ident_node, arg_nodes, block_node) = fdef.node();
+    let (prim_node, ident_node, arg_nodes, block_node) = fdef.node();
     for arg_node in arg_nodes {
         let (arg_prim_node, arg_ident_node) = arg_node.node();
         let (prim, ident) = (arg_prim_node.node(), arg_ident_node.node());
@@ -43,10 +87,31 @@ pub fn check_fn(fdef: &ast::Node<ast::FunDef>, fenv: &FEnv, source: &str) -> Res
     }
 
     let stmts = block_node.node();
-    for stmt in stmts {
-        check_stmt(&stmt, &mut venv, fenv, source)?;
+    check_stmts(&stmts, &mut venv, fenv, source)?;
+
+    let expected_type = prim_node.node();
+    let actual_type = match stmts.last() {
+        None => ast::Prim::Void,
+        Some(last_stmt_node) => match last_stmt_node.node() {
+            ast::Stmt::VRet => ast::Prim::Void,
+            ast::Stmt::Ret(expr_node) => {
+                check_expr(&expr_node, &mut venv, fenv, source)?
+            },
+            _ => {
+                let msg = format!("No return statement in function {} of type {}",
+                    source_token(source, ident_node.span()), expected_type);
+                return Err(msg);
+            }
+        },
+    };
+
+    if actual_type != *expected_type {
+        let msg = format!("Wrong return type in '{}': expected: {}, got: {}",
+            source_token(source, ident_node.span()), expected_type, actual_type);
+        Err(msg)
+    } else {
+        Ok(())
     }
-    Ok(())
 }
 
 pub fn fn_env(fdefs: &Vec<ast::Node<ast::FunDef>>, source: &str) -> Result<FEnv, String> {

@@ -459,7 +459,19 @@ pub enum Item {
     Init(Node<Ident>, Node<Expr>),
 }
 
-#[derive(Debug, Clone)]
+impl std::fmt::Display for Prim {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+      let prim = match self {
+        Prim::Int => "int",
+        Prim::Str => "string",
+        Prim::Void => "void",
+        Prim::Bool => "boolean",
+      };
+      write!(f, "{}", prim)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Prim {
     Int,
     Str,
