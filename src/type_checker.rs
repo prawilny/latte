@@ -4,8 +4,38 @@ use std::collections::HashMap;
 use crate::latte_y as ast;
 use crate::Span;
 
-type VEnv = HashMap<ast::Ident, ast::Prim>;
+type VEnv = Vec<HashMap<ast::Ident, ast::Prim>>;
 type FEnv = HashMap<ast::Ident, ast::FunType>;
+
+trait VarEnv {
+    fn vget(&self, key: &ast::Ident) -> Option<ast::Prim>;
+    fn vinsert(&mut self, key: ast::Ident, key: ast::Prim) -> Option<ast::Prim>;
+    fn vnew(&mut self) -> ();
+    fn vdrop(&mut self) -> ();
+}
+
+impl VarEnv for VEnv {
+    fn vget(&self, key: &ast::Ident) -> Option<ast::Prim> {
+        for venv in self.iter().rev() {
+            if let Some(prim) = venv.get(key) {
+                return Some(prim.clone());
+            }
+        }
+        None
+    }
+
+    fn vinsert(&mut self, key: ast::Ident, val: ast::Prim) -> Option<ast::Prim> {
+        self.last_mut().unwrap().insert(key, val)
+    }
+
+    fn vnew(&mut self) -> () {
+        self.push(HashMap::new());
+    }
+
+    fn vdrop(&mut self) -> () {
+        self.pop();
+    }
+}
 
 pub fn source_token(source: &str, span: &Span) -> String {
     source.get(span.start()..span.end()).unwrap().to_string()
@@ -19,6 +49,10 @@ pub fn check_types(fdefs: &Vec<ast::Node<ast::FunDef>>, source: &str) -> Result<
     }
 
     Ok(())
+}
+
+pub fn undeclared_var_msg(source: &str, span: &Span) -> String {
+    format!("use of undeclared variable {}", source_token(source, span))
 }
 
 pub fn type_mismatch_msg(expected_type: ast::Prim, actual_type: &ast::Prim, source: &str, span: &Span) -> String {
@@ -49,24 +83,24 @@ pub fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv,
                     ast::Item::Init(ident_node, expr_node)
                         => (ident_node.node().clone(), check_expr(&expr_node, &mut venv, fenv, source)?),
                 };
-                venv.insert(key, val);
+                venv.vinsert(key, val);
             }
             Ok(())
         },
         ast::Stmt::Asgn(ident_node, expr_node) => {
             let expr_prim = check_expr(&expr_node, &mut venv, fenv, source)?;
-            venv.insert(ident_node.node().clone(), expr_prim);
-            Ok(())
+            match venv.vinsert(ident_node.node().clone(), expr_prim) {
+                Some(_) => Ok(()),
+                None => Err(undeclared_var_msg(source, ident_node.span())),
+            }
+
         },
         ast::Stmt::Incr(ident_node) | ast::Stmt::Decr(ident_node) => {
             let ident = ident_node.node().clone();
-            match venv.get(&ident) {
+            match venv.vget(&ident) {
                 Some(ast::Prim::Int) => Ok(()),
-                Some(prim) => Err(type_mismatch_msg(ast::Prim::Int, prim, source, ident_node.span())),
-                None => {
-                    venv.insert(ident, ast::Prim::Int);
-                    Ok(())
-                }
+                Some(prim) => Err(type_mismatch_msg(ast::Prim::Int, &prim, source, ident_node.span())),
+                None => Err(undeclared_var_msg(source, ident_node.span()))
             }
         },
         ast::Stmt::Expr(expr_node) | ast::Stmt::Ret(expr_node) => {
@@ -95,13 +129,13 @@ pub fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv,
 
 // w tym momencie żądam returna na końcu funkcji typu różnego niż void
 pub fn check_fn(fdef: &ast::Node<ast::FunDef>, fenv: &FEnv, source: &str) -> Result<(), String> {
-    let mut venv = HashMap::new();
+    let mut venv = vec![HashMap::new()];
 
     let (prim_node, ident_node, arg_nodes, block_node) = fdef.node();
     for arg_node in arg_nodes {
         let (arg_prim_node, arg_ident_node) = arg_node.node();
         let (prim, ident) = (arg_prim_node.node(), arg_ident_node.node());
-        if let Some(_) = venv.insert(ident.clone(), prim.clone()) {
+        if let Some(_) = venv.vinsert(ident.clone(), prim.clone()) {
             let msg = format!("Argument name {} repeated in function {}",
                 ident, source_token(source, ident_node.span()));
             return Err(msg)
