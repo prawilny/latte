@@ -19,11 +19,11 @@ pub fn check_types(fdefs: &Vec<ast::Node<ast::FunDef>>, source: &str) -> Result<
     Ok(())
 }
 
-pub fn check_expr(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &mut FEnv, source: &str) -> Result<(), String> {
+pub fn check_expr(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv, source: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &mut FEnv, source: &str) -> Result<(), String> {
+pub fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv, source: &str) -> Result<(), String> {
     Ok(())
 }
 
@@ -38,7 +38,7 @@ pub fn check_fn(fdef: &ast::Node<ast::FunDef>, fenv: &FEnv, source: &str) -> Res
                     (arg_prim_node, arg_ident_node) => {
                         match (arg_prim_node.node(), arg_ident_node.node()) {
                             (prim, ident) => {
-                                match venv.insert(ident, prim) {
+                                match venv.insert(ident.clone(), prim.clone()) {
                                     None => (),
                                     Some(_) => {
                                         let msg = format!("Argument name {} repeated in function {}",
@@ -53,9 +53,11 @@ pub fn check_fn(fdef: &ast::Node<ast::FunDef>, fenv: &FEnv, source: &str) -> Res
             }
 
             match block_node.node() {
-                stmts => match stmts.len() {
-                    0 => return Ok(()),
-                    _ => return Ok(()),
+                stmts =>  {
+                    for stmt in stmts {
+                        check_stmt(&stmt, &mut venv, fenv, source)?;
+                    }
+                    Ok(())
                 },
             }
         }
