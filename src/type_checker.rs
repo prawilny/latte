@@ -78,6 +78,43 @@ pub fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, fenv: &FEnv, source:
                 prim => Err(type_mismatch_msg(ast::Prim::Bool, &prim, source, expr_node.span())),
             }
         }
+        ast::Expr::And(expr1_node, expr2_node) | ast::Expr::Or(expr1_node, expr2_node) => {
+            match check_expr(expr1_node, venv, fenv, source)? {
+                ast::Prim::Bool => {
+                    match check_expr(expr2_node, venv, fenv, source)? {
+                        ast::Prim::Bool => Ok(ast::Prim::Bool),
+                        prim => Err(type_mismatch_msg(ast::Prim::Bool, &prim, source, expr2_node.span())),
+                    }
+                },
+                prim => Err(type_mismatch_msg(ast::Prim::Bool, &prim, source, expr1_node.span())),
+            }
+        }
+        ast::Expr::Add(expr1_node, expr2_node) | ast::Expr::Div(expr1_node, expr2_node) |
+        ast::Expr::Sub(expr1_node, expr2_node) | ast::Expr::Mod(expr1_node, expr2_node) |
+        ast::Expr::Mul(expr1_node, expr2_node) => {
+            match check_expr(expr1_node, venv, fenv, source)? {
+                ast::Prim::Int => {
+                    match check_expr(expr2_node, venv, fenv, source)? {
+                        ast::Prim::Int => Ok(ast::Prim::Int),
+                        prim => Err(type_mismatch_msg(ast::Prim::Int, &prim, source, expr2_node.span())),
+                    }
+                },
+                prim => Err(type_mismatch_msg(ast::Prim::Int, &prim, source, expr1_node.span())),
+            }
+        }
+        ast::Expr::LTH(expr1_node, expr2_node) | ast::Expr::LEQ(expr1_node, expr2_node) |
+        ast::Expr::GTH(expr1_node, expr2_node) | ast::Expr::GEQ(expr1_node, expr2_node) |
+        ast::Expr::NEQ(expr1_node, expr2_node) | ast::Expr::EQ(expr1_node, expr2_node) => {
+            match check_expr(expr1_node, venv, fenv, source)? {
+                ast::Prim::Int => {
+                    match check_expr(expr2_node, venv, fenv, source)? {
+                        ast::Prim::Int => Ok(ast::Prim::Bool),
+                        prim => Err(type_mismatch_msg(ast::Prim::Int, &prim, source, expr2_node.span())),
+                    }
+                },
+                prim => Err(type_mismatch_msg(ast::Prim::Int, &prim, source, expr1_node.span())),
+            }
+        }
         _ => Ok(ast::Prim::Void),
     }
 
