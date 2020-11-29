@@ -59,7 +59,7 @@ pub fn check_types(fdefs: &Vec<ast::Node<ast::FunDef>>, source: &str) -> Result<
     Ok(())
 }
 
-pub fn check_expr(expr: &ast::Node<ast::Expr>, mut venv: &mut VEnv, fenv: &FEnv, source: &str) -> Result<ast::Prim, String> {
+pub fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, fenv: &FEnv, source: &str) -> Result<ast::Prim, String> {
     match expr.node() {
         ast::Expr::Var(ident_node) => {
             match venv.vget(ident_node.node()) {
@@ -72,6 +72,12 @@ pub fn check_expr(expr: &ast::Node<ast::Expr>, mut venv: &mut VEnv, fenv: &FEnv,
         ast::Expr::Int(_) => Ok(ast::Prim::Int),
         ast::Expr::Bool(_) => Ok(ast::Prim::Bool),
         ast::Expr::Str(_) => Ok(ast::Prim::Str),
+        ast::Expr::Neg(expr_node) | ast::Expr::Not(expr_node) => {
+            match check_expr(expr_node, venv, fenv, source)? {
+                ast::Prim::Bool => Ok(ast::Prim::Bool),
+                prim => Err(type_mismatch_msg(ast::Prim::Bool, &prim, source, expr_node.span())),
+            }
+        }
         _ => Ok(ast::Prim::Void),
     }
 
@@ -212,7 +218,7 @@ pub fn fn_env(fdefs: &Vec<ast::Node<ast::FunDef>>, source: &str) -> Result<FEnv,
 
         let (fn_type, fn_name) = (prim_node.node(), ident_node.node());
         if let Some(_) = fenv.insert(fn_name.clone(), (fn_type.clone(), arg_types)) {
-            let msg = format!("Function name {} not unique", fn_name);
+            let msg = format!("Function name {} not unique", source_token(source, ident_node.span()));
             return Err(msg)
         }
     }
