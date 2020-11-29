@@ -1,32 +1,32 @@
-%start TopDefs
+%start FunDefs
 %avoid_insert "INT"
 %%
 
-TopDefs -> Result<Vec<Node<TopDef>>, ()>:
-      TopDef {
+FunDefs -> Result<Vec<Node<FunDef>>, ()>:
+      FunDef {
         Ok(vec![$1?])
       }
     |
-      TopDefs TopDef {
-        let mut tds = $1?;
-        tds.push($2?);
-        Ok(tds)
+      FunDefs FunDef {
+        let mut funs = $1?;
+        funs.push($2?);
+        Ok(funs)
       }
     ;
-TopDef -> Result<Node<TopDef>, ()>:
-      Type Ident '(' ')' Block {
-        let t = $1.map_err(|_| ())?;
+FunDef -> Result<Node<FunDef>, ()>:
+      Prim Ident '(' ')' Block {
+        let prim = $1.map_err(|_| ())?;
         let ident = $2.map_err(|_| ())?;
         let block = $5.map_err(|_| ())?;
-        Ok(Node::new(Span::new(t.span().start(), block.span().end()), (t, ident, vec![], block)))
+        Ok(Node::new(Span::new(prim.span().start(), block.span().end()), (prim, ident, vec![], block)))
       }
     |
-      Type Ident '(' Args ')' Block {
-        let t = $1.map_err(|_| ())?;
+      Prim Ident '(' Args ')' Block {
+        let prim = $1.map_err(|_| ())?;
         let ident = $2.map_err(|_| ())?;
         let args = $4.map_err(|_| ())?;
         let block = $6.map_err(|_| ())?;
-        Ok(Node::new(Span::new(t.span().start(), block.span().end()), (t, ident, args, block)))
+        Ok(Node::new(Span::new(prim.span().start(), block.span().end()), (prim, ident, args, block)))
       }
     ;
 
@@ -194,27 +194,6 @@ Expr7 -> Result<Node<Expr>, ()>:
       }
     ;
 
-Type -> Result<Node<Type>, ()>:
-      Prim {
-        let p = $1?;
-        Ok(Node::new(p.span().clone(), Type::VType(p.node().clone())))
-      }
-    |
-      Prim '(' Prims ')' {
-        let p = $1?;
-        let ps = $3?.iter().map(|p| p.node().clone()).collect();
-        let rb = $4.map_err(|_| ())?;
-
-        Ok(Node::new(Span::new(p.span().start(), rb.span().end()), Type::FType(p.node().clone(), ps)))
-      }
-    |
-      Prim '(' ')' {
-        let p = $1?;
-        let rb = $3.map_err(|_| ())?;
-        Ok(Node::new(Span::new(p.span().start(), rb.span().end()), Type::FType(p.node.clone(), vec![])))
-      }
-    ;
-
 Prims -> Result<Vec<Node<Prim>>, ()>:
       Prim {
         Ok(vec![$1?])
@@ -260,7 +239,7 @@ Args -> Result<Vec<Node<Arg>>, ()>:
       }
     ;
 Arg -> Result<Node<Arg>, ()>:
-      Type Ident {
+      Prim Ident {
         Ok(Node::new(join_ast_spans(&$1, &$2)?, ($1?, $2?)))
       }
     ;
@@ -375,11 +354,11 @@ SimpleStmt -> Result<Node<Stmt>, ()>:
         Ok(Node::new(block.span().clone(), Stmt::Block(block)))
       }
     |
-      Type Items ';' {
-        let t = $1.map_err(|_| ())?;
+      Prim Items ';' {
+        let prim = $1.map_err(|_| ())?;
         let items = $2.map_err(|_| ())?;
         let semi = $3.map_err(|_| ())?;
-        Ok(Node::new(Span::new(t.span().start(), semi.span().end()), Stmt::Decl(t, items)))
+        Ok(Node::new(Span::new(prim.span().start(), semi.span().end()), Stmt::Decl(prim, items)))
       }
     |
       Ident '=' Expr ';' {
@@ -450,17 +429,19 @@ fn join_ast_spans<N1: Debug + Clone, N2: Debug + Clone>(start: &Result<Node<N1>,
 
 pub type Ident = String;
 
-pub type TopDef = (Node<Type>, Node<Ident>, Vec<Node<Arg>>, Node<Block>);
+pub type FunDef = (Node<Prim>, Node<Ident>, Vec<Node<Arg>>, Node<Block>);
+
+pub type FunType = (Prim, Vec<Prim>);
 
 pub type Block = Vec<Node<Stmt>>;
 
-pub type Arg = (Node<Type>, Node<Ident>);
+pub type Arg = (Node<Prim>, Node<Ident>);
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Empty,
     Block(Node<Block>),
-    Decl(Node<Type>, Vec<Node<Item>>),
+    Decl(Node<Prim>, Vec<Node<Item>>),
     Asgn(Node<Ident>, Node<Expr>),
     Incr(Node<Ident>),
     Decr(Node<Ident>),
@@ -476,12 +457,6 @@ pub enum Stmt {
 pub enum Item {
     NoInit(Node<Ident>),
     Init(Node<Ident>, Node<Expr>),
-}
-
-#[derive(Debug, Clone)]
-pub enum Type {
-    VType(Prim),
-    FType(Prim, Vec<Prim>),
 }
 
 #[derive(Debug, Clone)]
