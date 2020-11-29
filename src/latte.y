@@ -31,7 +31,12 @@ Ident -> Result<Node<Ident>, ()>:
 Exprs -> Result<Vec<Node<Expr>>, ()>:
       { Ok(vec![]) }
     |
-      Exprs ',' Expr {
+      Exprs2 { $1 }
+    ;
+Exprs2 -> Result<Vec<Node<Expr>>, ()>:
+      Expr { Ok(vec![$1?]) }
+    |
+      Exprs2 ',' Expr {
         let mut exprs = $1?;
         exprs.push($3?);
         Ok(exprs)
@@ -202,7 +207,12 @@ Prim -> Result<Node<Prim>, ()>:
 Args -> Result<Vec<Node<Arg>>, ()>:
       { Ok(vec![]) }
     |
-      Args ',' Arg {
+      Args2 { $1 }
+    ;
+Args2 -> Result<Vec<Node<Arg>>, ()>:
+      Arg { Ok(vec![$1?]) }
+    |
+      Args2 ',' Arg {
         let mut args = $1?;
         args.push($3?);
         Ok(args)
