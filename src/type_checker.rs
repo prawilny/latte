@@ -63,18 +63,31 @@ pub fn check_expr(expr: &ast::Node<ast::Expr>, mut venv: &mut VEnv, fenv: &FEnv,
     Ok(ast::Prim::Void)
 }
 
-pub fn check_stmts(stmts: &Vec<ast::Node<ast::Stmt>>, mut venv: &mut VEnv, fenv: &FEnv, source: &str) -> Result<(), String> {
+pub fn check_block(stmts: &Vec<ast::Node<ast::Stmt>>, mut venv: &mut VEnv, fenv: &FEnv, source: &str) -> Result<Option<ast::Prim>, String> {
+    venv.vnew();
     for stmt in stmts {
         check_stmt(&stmt, &mut venv, fenv, source)?;
     }
-    Ok(())
+    let return_type = match stmts.last() {
+        None => Some(ast::Prim::Void),
+        Some(last_stmt_node) => match last_stmt_node.node() {
+            ast::Stmt::VRet => Some(ast::Prim::Void),
+            ast::Stmt::Ret(expr_node) => Some(check_expr(&expr_node, &mut venv, fenv, source)?),
+            _ => None,
+        },
+    };
+    venv.vdrop();
+    Ok(return_type)
 }
 
 pub fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv, source: &str) -> Result<(), String> {
     match stmt.node() {
         ast::Stmt::Empty => Ok(()),
         ast::Stmt::VRet => Ok(()),
-        ast::Stmt::Block(block_node) => check_stmts(block_node.node(), &mut venv, fenv, source),
+        ast::Stmt::Block(block_node) => {
+            check_block(block_node.node(), &mut venv, fenv, source)?;
+            Ok(())
+        }
         ast::Stmt::Decl(prim_node, item_nodes) => {
             let prim = prim_node.node();
             for item_node in item_nodes {
@@ -110,7 +123,10 @@ pub fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv,
         ast::Stmt::If(expr_node, stmt_node) | ast::Stmt::While(expr_node, stmt_node) => {
             let expr_prim = check_expr(&expr_node, &mut venv, fenv, source)?;
             if expr_prim == ast::Prim::Bool {
-                check_stmt(&stmt_node, &mut venv, fenv, source)
+                venv.vnew();
+                check_stmt(&stmt_node, &mut venv, fenv, source)?;
+                venv.vdrop();
+                Ok(())
             } else {
                 Err(type_mismatch_msg(ast::Prim::Bool, &expr_prim, source, expr_node.span()))
             }
@@ -118,8 +134,13 @@ pub fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv,
         ast::Stmt::IfElse(expr_node, stmt1_node, stmt2_node) => {
             let expr_prim = check_expr(&expr_node, &mut venv, fenv, source)?;
             if expr_prim == ast::Prim::Bool {
+                venv.vnew();
                 check_stmt(&stmt1_node, &mut venv, fenv, source)?;
-                check_stmt(&stmt2_node, &mut venv, fenv, source)
+                venv.vdrop();
+                venv.vnew();
+                check_stmt(&stmt2_node, &mut venv, fenv, source)?;
+                venv.vdrop();
+                Ok(())
             } else {
                 Err(type_mismatch_msg(ast::Prim::Bool, &expr_prim, source, expr_node.span()))
             }
@@ -144,22 +165,15 @@ pub fn check_fn(fdef: &ast::Node<ast::FunDef>, fenv: &FEnv, source: &str) -> Res
     }
 
     let stmts = block_node.node();
-    check_stmts(&stmts, &mut venv, fenv, source)?;
 
     let expected_type = prim_node.node();
-    let actual_type = match stmts.last() {
-        None => ast::Prim::Void,
-        Some(last_stmt_node) => match last_stmt_node.node() {
-            ast::Stmt::VRet => ast::Prim::Void,
-            ast::Stmt::Ret(expr_node) => {
-                check_expr(&expr_node, &mut venv, fenv, source)?
-            },
-            _ => {
-                let msg = format!("No return statement in function {} of type {}",
-                    source_token(source, ident_node.span()), expected_type);
-                return Err(msg);
-            }
-        },
+    let actual_type = match check_block(&stmts, &mut venv, fenv, source)? {
+        None => {
+            let msg = format!("No return statement in function {} of type {}",
+                source_token(source, ident_node.span()), expected_type);
+            return Err(msg);
+        }
+        Some(prim) => prim,
     };
 
     if actual_type != *expected_type {
