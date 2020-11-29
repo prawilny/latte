@@ -160,6 +160,7 @@ pub fn check_block(stmts: &Vec<ast::Node<ast::Stmt>>, mut venv: &mut VEnv, fenv:
     Ok(return_type)
 }
 
+// TODO: typ na Result<Option<ast::Prim>, ()>, żeby sprawdzać typ returna
 pub fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv, source: &str) -> Result<(), String> {
     match stmt.node() {
         ast::Stmt::Empty => Ok(()),
@@ -266,7 +267,13 @@ pub fn check_fn(fdef: &ast::Node<ast::FunDef>, fenv: &FEnv, source: &str) -> Res
 }
 
 pub fn fn_env(fdefs: &Vec<ast::Node<ast::FunDef>>, source: &str) -> Result<FEnv, String> {
-    let mut fenv = HashMap::new();
+    let mut fenv: HashMap<ast::Ident, ast::FunType> = [
+        ("printInt".to_string(), (ast::Prim::Void, vec![ast::Prim::Int])),
+        ("printString".to_string(), (ast::Prim::Void, vec![ast::Prim::Str])),
+        ("error".to_string(), (ast::Prim::Void, vec![])),
+        ("readInt".to_string(), (ast::Prim::Int, vec![])),
+        ("readString".to_string(), (ast::Prim::Str, vec![])),
+    ].iter().cloned().collect();
 
     for fdef in fdefs.iter() {
         let (prim_node, ident_node, arg_nodes, _) = fdef.node();
