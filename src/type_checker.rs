@@ -129,7 +129,8 @@ pub fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv,
 
 // w tym momencie żądam returna na końcu funkcji typu różnego niż void
 pub fn check_fn(fdef: &ast::Node<ast::FunDef>, fenv: &FEnv, source: &str) -> Result<(), String> {
-    let mut venv = vec![HashMap::new()];
+    let mut venv = VEnv::new();
+    venv.vnew();
 
     let (prim_node, ident_node, arg_nodes, block_node) = fdef.node();
     for arg_node in arg_nodes {
