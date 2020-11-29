@@ -3,9 +3,7 @@
 %%
 
 FunDefs -> Result<Vec<Node<FunDef>>, ()>:
-      FunDef {
-        Ok(vec![$1?])
-      }
+      { Ok(vec![]) }
     |
       FunDefs FunDef {
         let mut funs = $1?;
@@ -14,13 +12,6 @@ FunDefs -> Result<Vec<Node<FunDef>>, ()>:
       }
     ;
 FunDef -> Result<Node<FunDef>, ()>:
-      Prim Ident '(' ')' Block {
-        let prim = $1.map_err(|_| ())?;
-        let ident = $2.map_err(|_| ())?;
-        let block = $5.map_err(|_| ())?;
-        Ok(Node::new(Span::new(prim.span().start(), block.span().end()), (prim, ident, vec![], block)))
-      }
-    |
       Prim Ident '(' Args ')' Block {
         let prim = $1.map_err(|_| ())?;
         let ident = $2.map_err(|_| ())?;
@@ -38,9 +29,7 @@ Ident -> Result<Node<Ident>, ()>:
     ;
 
 Exprs -> Result<Vec<Node<Expr>>, ()>:
-      Expr {
-        Ok(vec![$1?])
-      }
+      { Ok(vec![]) }
     |
       Exprs ',' Expr {
         let mut exprs = $1?;
@@ -158,12 +147,6 @@ Expr6 -> Result<Node<Expr>, ()>:
         Ok(Node::new(Span::new(ident.span().start(), rb.span().end()), Expr::App(ident, $3?)))
       }
     |
-      Ident '(' ')' {
-        let ident = $1?;
-        let rb = $3.map_err(|_| ())?;
-        Ok(Node::new(Span::new(ident.span().start(), rb.span().end()), Expr::App(ident, vec![])))
-      }
-    |
       Ident {
         let v = $1.map_err(|_| ())?;
         Ok(Node::new(v.span().clone(), Expr::Var(v)))
@@ -194,17 +177,6 @@ Expr7 -> Result<Node<Expr>, ()>:
       }
     ;
 
-Prims -> Result<Vec<Node<Prim>>, ()>:
-      Prim {
-        Ok(vec![$1?])
-      }
-    |
-      Prims ',' Prim {
-        let mut prims = $1?;
-        prims.push($3?);
-        Ok(prims)
-      }
-    ;
 Prim -> Result<Node<Prim>, ()>:
       'INT' {
         let p = $1.map_err(|_| ())?;
@@ -228,9 +200,7 @@ Prim -> Result<Node<Prim>, ()>:
     ;
 
 Args -> Result<Vec<Node<Arg>>, ()>:
-      Arg {
-        Ok(vec![$1?])
-      }
+      { Ok(vec![]) }
     |
       Args ',' Arg {
         let mut args = $1?;
@@ -269,12 +239,6 @@ Item -> Result<Node<Item>, ()>:
   ;
 
 Block -> Result<Node<Block>, ()>:
-      '{' '}' {
-        let lb = $1.map_err(|_| ())?;
-        let rb = $2.map_err(|_| ())?;
-        Ok(Node::new(Span::new(lb.span().start(), rb.span().end()), vec![]))
-      }
-    |
       '{' Stmts '}' {
         let lb = $1.map_err(|_| ())?;
         let rb = $3.map_err(|_| ())?;
@@ -283,9 +247,7 @@ Block -> Result<Node<Block>, ()>:
     ;
 
 Stmts -> Result<Vec<Node<Stmt>>, ()>:
-      Stmt {
-        Ok(vec![$1?])
-      }
+      { Ok(vec![]) }
     |
       Stmts Stmt {
         let mut stmts = $1?;
