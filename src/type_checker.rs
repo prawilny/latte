@@ -42,9 +42,20 @@ pub fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv,
         ast::Stmt::VRet => Ok(()),
         ast::Stmt::Block(block_node) => check_stmts(block_node.node(), &mut venv, fenv, source),
         ast::Stmt::Decl(prim_node, item_nodes) => {
+            let prim = prim_node.node();
+            for item_node in item_nodes {
+                let (key, val) = match item_node.node() {
+                    ast::Item::NoInit(ident_node) => (ident_node.node().clone(), prim.clone()),
+                    ast::Item::Init(ident_node, expr_node)
+                        => (ident_node.node().clone(), check_expr(&expr_node, &mut venv, fenv, source)?),
+                };
+                venv.insert(key, val);
+            }
             Ok(())
         },
         ast::Stmt::Asgn(ident_node, expr_node) => {
+            let expr_prim = check_expr(&expr_node, &mut venv, fenv, source)?;
+            venv.insert(ident_node.node().clone(), expr_prim);
             Ok(())
         },
         ast::Stmt::Incr(ident_node) | ast::Stmt::Decr(ident_node) => {
