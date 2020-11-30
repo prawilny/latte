@@ -43,7 +43,7 @@ impl VarEnv for VEnv {
     }
 }
 
-pub fn wrap_error_msg(lexer: &dyn Lexer<u32>, span: &Span, msg: &str) -> String {
+fn wrap_error_msg(lexer: &dyn Lexer<u32>, span: &Span, msg: &str) -> String {
     let token = lexer.span_str(*span);
     let token_lines = lexer.span_lines_str(*span);
     let ((start_line, start_column), (end_line, end_column)) = lexer.line_col(*span);
@@ -53,15 +53,11 @@ pub fn wrap_error_msg(lexer: &dyn Lexer<u32>, span: &Span, msg: &str) -> String 
         token, token_lines)
 }
 
-// pub fn lexer_token(lexer: &dyn Lexer<u32>, span: &Span) -> String {
-//     lexer.span_str(*span).to_string()
-// }
-
-pub fn undeclared_var_msg(lexer: &dyn Lexer<u32>, span: &Span) -> String {
+fn undeclared_var_msg(lexer: &dyn Lexer<u32>, span: &Span) -> String {
     wrap_error_msg(lexer, span, "use of undeclared variable")
 }
 
-pub fn type_mismatch_msg(expected_type: ast::Prim, actual_type: &ast::Prim, lexer: &dyn Lexer<u32>, span: &Span) -> String {
+fn type_mismatch_msg(expected_type: ast::Prim, actual_type: &ast::Prim, lexer: &dyn Lexer<u32>, span: &Span) -> String {
     let msg = format!("type mismatch at: expected {}, got {}", expected_type, actual_type);
     wrap_error_msg(lexer, span, &msg)
 }
@@ -76,7 +72,7 @@ pub fn check_types(fdefs: &Vec<ast::Node<ast::FunDef>>, lexer: &dyn Lexer<u32>) 
     Ok(())
 }
 
-pub fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, fenv: &FEnv, lexer: &dyn Lexer<u32>) -> Result<ast::Prim, String> {
+fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, fenv: &FEnv, lexer: &dyn Lexer<u32>) -> Result<ast::Prim, String> {
     match expr.node() {
         ast::Expr::App(ident_node, expr_nodes) => {
             let (fun_type, fun_arg_types) = match fenv.get(ident_node.node()) {
@@ -159,7 +155,7 @@ pub fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, fenv: &FEnv, lexer: 
 
 }
 
-pub fn check_block(stmts: &Vec<ast::Node<ast::Stmt>>, mut venv: &mut VEnv, fenv: &FEnv, lexer: &dyn Lexer<u32>) -> Result<Option<ast::Prim>, String> {
+fn check_block(stmts: &Vec<ast::Node<ast::Stmt>>, mut venv: &mut VEnv, fenv: &FEnv, lexer: &dyn Lexer<u32>) -> Result<Option<ast::Prim>, String> {
     venv.vnew();
     for stmt in stmts {
         check_stmt(&stmt, &mut venv, fenv, lexer)?;
@@ -177,7 +173,7 @@ pub fn check_block(stmts: &Vec<ast::Node<ast::Stmt>>, mut venv: &mut VEnv, fenv:
 }
 
 // TODO: typ na Result<Option<ast::Prim>, ()>, żeby sprawdzać typ returna
-pub fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv, lexer: &dyn Lexer<u32>) -> Result<(), String> {
+fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv, lexer: &dyn Lexer<u32>) -> Result<(), String> {
     match stmt.node() {
         ast::Stmt::Empty => Ok(()),
         ast::Stmt::VRet => Ok(()),
@@ -246,7 +242,7 @@ pub fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv,
 }
 
 // w tym momencie żądam returna na końcu funkcji typu różnego niż void
-pub fn check_fn(fdef: &ast::Node<ast::FunDef>, fenv: &FEnv, lexer: &dyn Lexer<u32>) -> Result<(), String> {
+fn check_fn(fdef: &ast::Node<ast::FunDef>, fenv: &FEnv, lexer: &dyn Lexer<u32>) -> Result<(), String> {
     let mut venv = VEnv::new();
     venv.vnew();
 
@@ -278,7 +274,7 @@ pub fn check_fn(fdef: &ast::Node<ast::FunDef>, fenv: &FEnv, lexer: &dyn Lexer<u3
     }
 }
 
-pub fn fn_env(fdefs: &Vec<ast::Node<ast::FunDef>>, lexer: &dyn Lexer<u32>) -> Result<FEnv, String> {
+fn fn_env(fdefs: &Vec<ast::Node<ast::FunDef>>, lexer: &dyn Lexer<u32>) -> Result<FEnv, String> {
     let mut fenv: HashMap<ast::Ident, ast::FunType> = [
         ("printInt".to_string(), (ast::Prim::Void, vec![ast::Prim::Int])),
         ("printString".to_string(), (ast::Prim::Void, vec![ast::Prim::Str])),
