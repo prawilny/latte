@@ -409,6 +409,8 @@ pub type Block = Vec<Node<Stmt>>;
 
 pub type Arg = (Node<Prim>, Node<Ident>);
 
+pub type IntType = i64;
+
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Empty,
@@ -454,7 +456,7 @@ pub enum Prim {
 #[derive(Debug, Clone)]
 pub enum Expr {
     Var(Node<Ident>),
-    Int(i64),
+    Int(IntType),
     Bool(bool),
     Str(String),
 
@@ -479,11 +481,11 @@ pub enum Expr {
     NEQ(Box<Node<Expr>>, Box<Node<Expr>>),
 }
 
-fn parse_int(s: &str) -> Result<i64, ()> {
-    match s.parse::<i64>() {
+fn parse_int(s: &str) -> Result<IntType, ()> {
+    match s.parse::<IntType>() {
         Ok(val) => Ok(val),
         Err(_) => {
-            eprintln!("{} cannot be represented as a i64", s);
+            eprintln!("{} cannot be represented as a IntType", s);
             Err(())
         }
     }
