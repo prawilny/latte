@@ -9,6 +9,7 @@ use ::lrpar::Span;
 
 mod type_checker;
 
+// TODO: wyłączyć error recovery później
 lrlex::lrlex_mod!("latte.l");
 lrpar::lrpar_mod!("latte.y");
 
@@ -36,7 +37,7 @@ fn main() {
         process::exit(2);
     }
     let parsed = res.unwrap().unwrap();
-    match type_checker::check_types(&parsed, &source) {
+    match type_checker::check_types(&parsed, &lexer) {
         Ok(_) => (),
         Err(msg) => {
             eprintln!("ERROR");
