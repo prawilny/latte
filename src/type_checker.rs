@@ -5,11 +5,13 @@
 
 use std::collections::HashMap;
 use crate::latte_y as ast;
+use crate::latte_y::IntType;
 use crate::Span;
 use ::lrpar::NonStreamingLexer as Lexer;
 
 type VEnv = Vec<HashMap<ast::Ident, ast::Prim>>;
 type FEnv = HashMap<ast::Ident, ast::FunType>;
+
 
 trait VarEnv {
     fn vget(&self, key: &ast::Ident) -> Option<ast::Prim>;
@@ -70,6 +72,51 @@ pub fn check_types(fdefs: &Vec<ast::Node<ast::FunDef>>, lexer: &dyn Lexer<u32>) 
     }
 
     Ok(())
+}
+
+fn expr_int(expr: &ast::Node<ast::Expr>, lexer: &dyn Lexer<u32>) -> Result<Option<IntType>, String> {
+    match expr.node() {
+        ast::Expr::Int(i) => Ok(Some(*i)),
+        ast::Expr::Neg(expr_node) => {
+            if let Ok(Some(i)) = expr_int(expr_node, lexer) {
+                Ok(Some(-1 * i))
+            } else {
+                Ok(None)
+            }
+        },
+        ast::Expr::Add(expr1_node, expr2_node) |
+        ast::Expr::Sub(expr1_node, expr2_node) |
+        ast::Expr::Mul(expr1_node, expr2_node) => {
+            match (expr_int(expr1_node, lexer)?, expr_int(expr2_node, lexer)?) {
+                (Some(e1), Some(e2)) => {
+                    match expr.node() {
+                        ast::Expr::Add(_, _) => Ok(Some(e1 + e2)),
+                        ast::Expr::Sub(_, _) => Ok(Some(e1 - e2)),
+                        ast::Expr::Mul(_, _) => Ok(Some(e1 * e2)),
+                        _ => unreachable!(),
+                    }
+                },
+                _ => Ok(None),
+            }
+        },
+        ast::Expr::Div(expr1_node, expr2_node) |
+        ast::Expr::Mod(expr1_node, expr2_node) => {
+            match (expr_int(expr1_node, lexer)?, expr_int(expr2_node, lexer)?) {
+                (_, Some(0)) => {
+                    Err(wrap_error_msg(lexer, expr2_node.span(), "Div/mod by 0"))
+                }
+                (Some(e1), Some(e2)) => {
+                    match expr.node() {
+                        ast::Expr::Div(_, _) => Ok(Some(e1 / e2)),
+                        ast::Expr::Mod(_, _) => Ok(Some(e1 % e2)),
+                        _ => unreachable!(),
+                    }
+                },
+                _ => Ok(None),
+            }
+        },
+        _ => Ok(None),
+    }
 }
 
 fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, fenv: &FEnv, lexer: &dyn Lexer<u32>) -> Result<ast::Prim, String> {
