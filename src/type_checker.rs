@@ -74,6 +74,54 @@ pub fn check_types(fdefs: &Vec<ast::Node<ast::FunDef>>, lexer: &dyn Lexer<u32>) 
     Ok(())
 }
 
+fn expr_bool(expr: &ast::Node<ast::Expr>, lexer: &dyn Lexer<u32>) -> Result<Option<bool>, String> {
+    match expr.node() {
+        ast::Expr::Bool(b) => Ok(Some(*b)),
+        ast::Expr::Not(expr_node) => {
+            if let Ok(Some(b)) = expr_bool(expr_node, lexer) {
+                Ok(Some(!b))
+            } else {
+                Ok(None)
+            }
+        },
+        ast::Expr::And(expr1_node, expr2_node) |
+        ast::Expr::Or(expr1_node, expr2_node) => {
+            match (expr_bool(expr1_node, lexer)?, expr_bool(expr2_node, lexer)?) {
+                (Some(b1), Some(b2)) => {
+                    match expr.node() {
+                        ast::Expr::And(_, _) => Ok(Some(b1 && b2)),
+                        ast::Expr::Or(_, _) => Ok(Some(b1 || b2)),
+                        _ => unreachable!(),
+                    }
+                },
+                _ => Ok(None),
+            }
+        },
+        ast::Expr::LTH(expr1_node, expr2_node) |
+        ast::Expr::LEQ(expr1_node, expr2_node) |
+        ast::Expr::GTH(expr1_node, expr2_node) |
+        ast::Expr::GEQ(expr1_node, expr2_node) |
+        ast::Expr::NEQ(expr1_node, expr2_node) |
+        ast::Expr::EQ(expr1_node, expr2_node) => {
+            match (expr_int(expr1_node, lexer)?, expr_int(expr2_node, lexer)?) {
+                (Some(e1), Some(e2)) => {
+                    match expr.node() {
+                        ast::Expr::LTH(_, _) => Ok(Some(e1 < e2)),
+                        ast::Expr::LEQ(_, _) => Ok(Some(e1 <= e2)),
+                        ast::Expr::GTH(_, _) => Ok(Some(e1 > e2)),
+                        ast::Expr::GEQ(_, _) => Ok(Some(e1 >= e2)),
+                        ast::Expr::NEQ(_, _) => Ok(Some(e1 != e2)),
+                        ast::Expr::EQ(_, _) => Ok(Some(e1 == e2)),
+                        _ => unreachable!(),
+                    }
+                },
+                _ => Ok(None),
+            }
+        },
+        _ => Ok(None),
+    }
+}
+
 fn expr_int(expr: &ast::Node<ast::Expr>, lexer: &dyn Lexer<u32>) -> Result<Option<IntType>, String> {
     match expr.node() {
         ast::Expr::Int(i) => Ok(Some(*i)),
