@@ -1,5 +1,3 @@
-// TODO: '+' dla konkatenacji stringów
-// TODO: porównanie booli
 // TODO: int i = i + 1 <== właściwe związanie
 // TODO: poprawianie wielu `match` (guardy)
 // TODO?: przerobienie operacji na unarne/binarne z operatorem
@@ -67,6 +65,12 @@ fn type_mismatch_msg(expected_type: ast::Prim, actual_type: &ast::Prim, lexer: &
     wrap_error_msg(lexer, span, &msg)
 }
 
+fn wrong_operator_arguments(expected_types: &Vec<(ast::Prim, ast::Prim)>, actual_types: (ast::Prim, ast::Prim),
+    lexer: &dyn Lexer<u32>, span: &Span) -> String {
+    let msg = format!("type mismatch at: expected {:?}, got {:?}", expected_types, actual_types);
+    wrap_error_msg(lexer, span, &msg)
+}
+
 pub fn check_types(fdefs: &Vec<ast::Node<ast::FunDef>>, lexer: &dyn Lexer<u32>) -> Result<(), String> {
     let env = fn_env(fdefs, lexer)?;
 
@@ -103,9 +107,7 @@ fn expr_bool(expr: &ast::Node<ast::Expr>, lexer: &dyn Lexer<u32>) -> Result<Opti
         ast::Expr::LTH(expr1_node, expr2_node) |
         ast::Expr::LEQ(expr1_node, expr2_node) |
         ast::Expr::GTH(expr1_node, expr2_node) |
-        ast::Expr::GEQ(expr1_node, expr2_node) |
-        ast::Expr::NEQ(expr1_node, expr2_node) |
-        ast::Expr::EQ(expr1_node, expr2_node) => {
+        ast::Expr::GEQ(expr1_node, expr2_node) => {
             match (expr_int(expr1_node, lexer)?, expr_int(expr2_node, lexer)?) {
                 (Some(e1), Some(e2)) => {
                     match expr.data() {
@@ -113,11 +115,29 @@ fn expr_bool(expr: &ast::Node<ast::Expr>, lexer: &dyn Lexer<u32>) -> Result<Opti
                         ast::Expr::LEQ(_, _) => Ok(Some(e1 <= e2)),
                         ast::Expr::GTH(_, _) => Ok(Some(e1 > e2)),
                         ast::Expr::GEQ(_, _) => Ok(Some(e1 >= e2)),
+                        _ => unreachable!(),
+                    }
+                },
+                _ => Ok(None),
+            }
+        },
+        ast::Expr::NEQ(expr1_node, expr2_node) |
+        ast::Expr::EQ(expr1_node, expr2_node) => {
+            match (expr_int(expr1_node, lexer)?, expr_int(expr2_node, lexer)?, expr_int(expr1_node, lexer)?, expr_int(expr2_node, lexer)?) {
+                (Some(e1), Some(e2), _, _) => {
+                    match expr.data() {
                         ast::Expr::NEQ(_, _) => Ok(Some(e1 != e2)),
                         ast::Expr::EQ(_, _) => Ok(Some(e1 == e2)),
                         _ => unreachable!(),
                     }
                 },
+                ( _, _, Some(b1), Some(b2)) => {
+                    match expr.data() {
+                        ast::Expr::NEQ(_, _) => Ok(Some(b1 != b2)),
+                        ast::Expr::EQ(_, _) => Ok(Some(b1 == b2)),
+                        _ => unreachable!(),
+                    }
+                }
                 _ => Ok(None),
             }
         },
@@ -212,45 +232,58 @@ fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, fenv: &FEnv, lexer: &dyn
                 prim => Err(type_mismatch_msg(ast::Prim::Bool, &prim, lexer, expr_node.span())),
             }
         }
-        ast::Expr::And(expr1_node, expr2_node) | ast::Expr::Or(expr1_node, expr2_node) => {
-            match check_expr(expr1_node, venv, fenv, lexer)? {
-                ast::Prim::Bool => {
-                    match check_expr(expr2_node, venv, fenv, lexer)? {
-                        ast::Prim::Bool => Ok(ast::Prim::Bool),
-                        prim => Err(type_mismatch_msg(ast::Prim::Bool, &prim, lexer, expr2_node.span())),
-                    }
-                },
-                prim => Err(type_mismatch_msg(ast::Prim::Bool, &prim, lexer, expr1_node.span())),
+        ast::Expr::And(expr1_node, expr2_node)|
+        ast::Expr::Or(expr1_node, expr2_node) => {
+            let acceptable_prims = vec![(ast::Prim::Bool, ast::Prim::Bool)];
+            match (check_expr(expr1_node, venv, fenv, lexer)?, check_expr(expr2_node, venv, fenv, lexer)?)  {
+                (ast::Prim::Bool, ast::Prim::Bool) => Ok(ast::Prim::Bool),
+                (prim1, prim2) => Err(wrong_operator_arguments(&acceptable_prims, (prim1, prim2), lexer, expr.span())),
             }
         }
-        ast::Expr::Add(expr1_node, expr2_node) | ast::Expr::Div(expr1_node, expr2_node) |
-        ast::Expr::Sub(expr1_node, expr2_node) | ast::Expr::Mod(expr1_node, expr2_node) |
+        ast::Expr::Add(expr1_node, expr2_node) => {
+            let acceptable_prims = vec![
+                (ast::Prim::Int, ast::Prim::Int),
+                (ast::Prim::Str, ast::Prim::Str),
+            ];
+            match (check_expr(expr1_node, venv, fenv, lexer)?, check_expr(expr2_node, venv, fenv, lexer)?)  {
+                (ast::Prim::Int, ast::Prim::Int) => Ok(ast::Prim::Int),
+                (ast::Prim::Str, ast::Prim::Str) => Ok(ast::Prim::Str),
+                (prim1, prim2) => Err(wrong_operator_arguments(&acceptable_prims, (prim1, prim2), lexer, expr.span())),
+            }
+        },
+        ast::Expr::Div(expr1_node, expr2_node) |
+        ast::Expr::Sub(expr1_node, expr2_node) |
+        ast::Expr::Mod(expr1_node, expr2_node) |
         ast::Expr::Mul(expr1_node, expr2_node) => {
-            match check_expr(expr1_node, venv, fenv, lexer)? {
-                ast::Prim::Int => {
-                    match check_expr(expr2_node, venv, fenv, lexer)? {
-                        ast::Prim::Int => Ok(ast::Prim::Int),
-                        prim => Err(type_mismatch_msg(ast::Prim::Int, &prim, lexer, expr2_node.span())),
-                    }
-                },
-                prim => Err(type_mismatch_msg(ast::Prim::Int, &prim, lexer, expr1_node.span())),
+            let acceptable_prims = vec![(ast::Prim::Int, ast::Prim::Int)];
+            match (check_expr(expr1_node, venv, fenv, lexer)?, check_expr(expr2_node, venv, fenv, lexer)?)  {
+                (ast::Prim::Int, ast::Prim::Int) => Ok(ast::Prim::Int),
+                (prim1, prim2) => Err(wrong_operator_arguments(&acceptable_prims, (prim1, prim2), lexer, expr.span())),
             }
         }
-        ast::Expr::LTH(expr1_node, expr2_node) | ast::Expr::LEQ(expr1_node, expr2_node) |
-        ast::Expr::GTH(expr1_node, expr2_node) | ast::Expr::GEQ(expr1_node, expr2_node) |
-        ast::Expr::NEQ(expr1_node, expr2_node) | ast::Expr::EQ(expr1_node, expr2_node) => {
-            match check_expr(expr1_node, venv, fenv, lexer)? {
-                ast::Prim::Int => {
-                    match check_expr(expr2_node, venv, fenv, lexer)? {
-                        ast::Prim::Int => Ok(ast::Prim::Bool),
-                        prim => Err(type_mismatch_msg(ast::Prim::Int, &prim, lexer, expr2_node.span())),
-                    }
-                },
-                prim => Err(type_mismatch_msg(ast::Prim::Int, &prim, lexer, expr1_node.span())),
+        ast::Expr::LTH(expr1_node, expr2_node) |
+        ast::Expr::LEQ(expr1_node, expr2_node) |
+        ast::Expr::GTH(expr1_node, expr2_node) |
+        ast::Expr::GEQ(expr1_node, expr2_node) => {
+            let acceptable_prims = vec![(ast::Prim::Bool, ast::Prim::Bool)];
+            match (check_expr(expr1_node, venv, fenv, lexer)?, check_expr(expr2_node, venv, fenv, lexer)?)  {
+                (ast::Prim::Bool, ast::Prim::Bool) => Ok(ast::Prim::Bool),
+                (prim1, prim2) => Err(wrong_operator_arguments(&acceptable_prims, (prim1, prim2), lexer, expr.span())),
+            }
+        }
+        ast::Expr::NEQ(expr1_node, expr2_node) |
+        ast::Expr::EQ(expr1_node, expr2_node) => {
+            let acceptable_prims = vec![
+                (ast::Prim::Bool, ast::Prim::Bool),
+                (ast::Prim::Int, ast::Prim::Int),
+            ];
+            match (check_expr(expr1_node, venv, fenv, lexer)?, check_expr(expr2_node, venv, fenv, lexer)?)  {
+                (ast::Prim::Bool, ast::Prim::Bool) |
+                (ast::Prim::Int, ast::Prim::Int) => Ok(ast::Prim::Bool),
+                (prim1, prim2) => Err(wrong_operator_arguments(&acceptable_prims, (prim1, prim2), lexer, expr.span())),
             }
         }
     }
-
 }
 
 fn check_block(stmts: &Vec<ast::Node<ast::Stmt>>, fn_prim: &ast::Prim, mut venv: &mut VEnv, fenv: &FEnv, lexer: &dyn Lexer<u32>) -> Result<bool, String> {
