@@ -376,20 +376,20 @@ use ::lrpar::Span;
 #[derive(Debug, Clone)]
 pub struct Node<N: Debug + Clone> {
     span: Span,
-    node: N,
+    data: N,
 }
 
 impl<N: Debug + Clone> Node<N> {
-    pub fn new(span: Span, node: N) -> Node<N> {
-        Node{span, node}
+    pub fn new(span: Span, data: N) -> Node<N> {
+        Node{span, data}
     }
 
     pub fn span(&self) -> &Span {
         &self.span
     }
 
-    pub fn node(&self) -> &N {
-        &self.node
+    pub fn data(&self) -> &N {
+        &self.data
     }
 }
 
