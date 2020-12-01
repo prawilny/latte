@@ -1,4 +1,10 @@
-// TODO: data() => data()
+// TODO: sprawdzenie obecności main
+// TODO: lepszy return checking (może/musi zwrócić X) z uwzglednieniem const expr
+// TODO: return checking branchów
+// TODO: brak redefinicji w bloku
+// TODO: '+' dla konkatenacji stringów
+// TODO: porównanie booli
+// TODO: int i = i + 1 <== właściwe związanie
 
 use std::collections::HashMap;
 use crate::latte_y as ast;
@@ -270,7 +276,10 @@ fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv, lex
         ast::Stmt::Empty => Ok(None),
         ast::Stmt::VRet => Ok(Some(ast::Prim::Void)),
         ast::Stmt::Block(block_node) => check_block(block_node.data(), &mut venv, fenv, lexer, block_node.span()),
-        ast::Stmt::Expr(expr_node) | ast::Stmt::Ret(expr_node) => Ok(Some(check_expr(&expr_node, &mut venv, fenv, lexer)?)),
+        ast::Stmt::Expr(expr_node) | ast::Stmt::Ret(expr_node) => {
+            check_expr(&expr_node, &mut venv, fenv, lexer)?;
+            Ok(None)
+        }
         ast::Stmt::Decl(prim_node, item_nodes) => {
             let prim = prim_node.data();
             for item_node in item_nodes {
