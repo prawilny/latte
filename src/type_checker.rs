@@ -311,24 +311,33 @@ fn check_stmt(stmt: &ast::Node<ast::Stmt>, fn_prim: &ast::Prim, mut venv: &mut V
             Ok(false)
         }
         ast::Stmt::Decl(prim_node, item_nodes) => {
-            let prim = prim_node.data();
+            let decl_prim = prim_node.data();
             for item_node in item_nodes {
-                let (key, val) = match item_node.data() {
-                    ast::Item::NoInit(ident_node) => (ident_node.data().clone(), prim.clone()),
+                let (var_name, var_prim) = match item_node.data() {
+                    ast::Item::NoInit(ident_node) => (ident_node.data().clone(), decl_prim.clone()),
                     ast::Item::Init(ident_node, expr_node)
                         => (ident_node.data().clone(), check_expr(&expr_node, &mut venv, fenv, lexer)?),
                 };
-                if let Some(_) = venv_get_in_scope(venv, &key) {
+                if *decl_prim != var_prim {
+                    return Err(type_mismatch_msg(decl_prim.clone(), &var_prim, lexer, item_node.span()))
+                }
+                if let Some(_) = venv_get_in_scope(venv, &var_name) {
                     return Err(wrap_error_msg(lexer, item_node.span(), "variable redeclared within block"))
                 }
-                venv_insert(venv, key, val);
+                venv_insert(venv, var_name, var_prim);
             }
             Ok(false)
         },
         ast::Stmt::Asgn(ident_node, expr_node) => {
             let expr_prim = check_expr(&expr_node, &mut venv, fenv, lexer)?;
-            match venv_insert(venv, ident_node.data().clone(), expr_prim) {
-                Some(_) => Ok(false),
+            match venv_insert(venv, ident_node.data().clone(), expr_prim.clone()) {
+                Some(var_prim) => {
+                    if var_prim == expr_prim {
+                        Ok(false)
+                    } else {
+                        Err(type_mismatch_msg(var_prim, &expr_prim, lexer, expr_node.span()))
+                    }
+                },
                 None => Err(undeclared_var_msg(lexer, ident_node.span())),
             }
         },
