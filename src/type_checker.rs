@@ -55,18 +55,18 @@ fn undeclared_var_msg(lexer: &dyn Lexer<u32>, span: &Span) -> String {
 }
 
 fn wrong_return_msg(expected_type: ast::Prim, actual_type: &ast::Prim, lexer: &dyn Lexer<u32>, span: &Span) -> String {
-    let msg = format!("wrong return type in: expected: {}, got: {}", expected_type, actual_type);
+    let msg = format!("wrong return type: expected {}, got: {}", expected_type, actual_type);
     wrap_error_msg(lexer, span, &msg)
 }
 
 fn type_mismatch_msg(expected_type: ast::Prim, actual_type: &ast::Prim, lexer: &dyn Lexer<u32>, span: &Span) -> String {
-    let msg = format!("type mismatch at: expected {}, got {}", expected_type, actual_type);
+    let msg = format!("type mismatch: expected {}, got {}", expected_type, actual_type);
     wrap_error_msg(lexer, span, &msg)
 }
 
 fn wrong_operator_arguments(expected_types: &Vec<(ast::Prim, ast::Prim)>, actual_types: (ast::Prim, ast::Prim),
     lexer: &dyn Lexer<u32>, span: &Span) -> String {
-    let msg = format!("Wrong operator arguments: acceptable {:?}, got {:?}", expected_types, actual_types);
+    let msg = format!("wrong operator arguments: acceptable {:?}, got {:?}", expected_types, actual_types);
     wrap_error_msg(lexer, span, &msg)
 }
 
@@ -225,12 +225,18 @@ fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, fenv: &FEnv, lexer: &dyn
         ast::Expr::Int(_) => Ok(ast::Prim::Int),
         ast::Expr::Bool(_) => Ok(ast::Prim::Bool),
         ast::Expr::Str(_) => Ok(ast::Prim::Str),
-        ast::Expr::Neg(expr_node) | ast::Expr::Not(expr_node) => {
+        ast::Expr::Not(expr_node) => {
             match check_expr(expr_node, venv, fenv, lexer)? {
                 ast::Prim::Bool => Ok(ast::Prim::Bool),
                 prim => Err(type_mismatch_msg(ast::Prim::Bool, &prim, lexer, expr_node.span())),
             }
-        }
+        },
+        ast::Expr::Neg(expr_node) => {
+            match check_expr(expr_node, venv, fenv, lexer)? {
+                ast::Prim::Int => Ok(ast::Prim::Int),
+                prim => Err(type_mismatch_msg(ast::Prim::Int, &prim, lexer, expr_node.span())),
+            }
+        },
         ast::Expr::And(expr1_node, expr2_node)|
         ast::Expr::Or(expr1_node, expr2_node) => {
             let acceptable_prims = vec![(ast::Prim::Bool, ast::Prim::Bool)];
@@ -238,7 +244,7 @@ fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, fenv: &FEnv, lexer: &dyn
                 (ast::Prim::Bool, ast::Prim::Bool) => Ok(ast::Prim::Bool),
                 (prim1, prim2) => Err(wrong_operator_arguments(&acceptable_prims, (prim1, prim2), lexer, expr.span())),
             }
-        }
+        },
         ast::Expr::Add(expr1_node, expr2_node) => {
             let acceptable_prims = vec![
                 (ast::Prim::Int, ast::Prim::Int),
@@ -259,17 +265,17 @@ fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, fenv: &FEnv, lexer: &dyn
                 (ast::Prim::Int, ast::Prim::Int) => Ok(ast::Prim::Int),
                 (prim1, prim2) => Err(wrong_operator_arguments(&acceptable_prims, (prim1, prim2), lexer, expr.span())),
             }
-        }
+        },
         ast::Expr::LTH(expr1_node, expr2_node) |
         ast::Expr::LEQ(expr1_node, expr2_node) |
         ast::Expr::GTH(expr1_node, expr2_node) |
         ast::Expr::GEQ(expr1_node, expr2_node) => {
             let acceptable_prims = vec![(ast::Prim::Bool, ast::Prim::Bool)];
             match (check_expr(expr1_node, venv, fenv, lexer)?, check_expr(expr2_node, venv, fenv, lexer)?)  {
-                (ast::Prim::Bool, ast::Prim::Bool) => Ok(ast::Prim::Bool),
+                (ast::Prim::Int, ast::Prim::Int) => Ok(ast::Prim::Bool),
                 (prim1, prim2) => Err(wrong_operator_arguments(&acceptable_prims, (prim1, prim2), lexer, expr.span())),
             }
-        }
+        },
         ast::Expr::NEQ(expr1_node, expr2_node) |
         ast::Expr::EQ(expr1_node, expr2_node) => {
             let acceptable_prims = vec![
@@ -281,7 +287,7 @@ fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, fenv: &FEnv, lexer: &dyn
                 (ast::Prim::Int, ast::Prim::Int) => Ok(ast::Prim::Bool),
                 (prim1, prim2) => Err(wrong_operator_arguments(&acceptable_prims, (prim1, prim2), lexer, expr.span())),
             }
-        }
+        },
     }
 }
 
