@@ -1,7 +1,3 @@
-// TODO: sprawdzenie obecności main
-// TODO: lepszy return checking (może/musi zwrócić X) z uwzglednieniem const expr
-// TODO: return checking branchów
-// TODO: brak redefinicji w bloku
 // TODO: '+' dla konkatenacji stringów
 // TODO: porównanie booli
 // TODO: int i = i + 1 <== właściwe związanie
@@ -16,6 +12,13 @@ use ::lrpar::NonStreamingLexer as Lexer;
 
 type VEnv = Vec<HashMap<ast::Ident, ast::Prim>>;
 type FEnv = HashMap<ast::Ident, ast::FunType>;
+
+fn venv_get_in_scope(venv: &VEnv, key: &ast::Ident) -> Option<ast::Prim> {
+    match venv.last().unwrap().get(key) {
+        Some(prim) => Some(prim.clone()),
+        None => None,
+    }
+}
 
 fn venv_get(venv: &VEnv, key: &ast::Ident) -> Option<ast::Prim> {
     for scope in venv.iter().rev() {
@@ -277,6 +280,9 @@ fn check_stmt(stmt: &ast::Node<ast::Stmt>, fn_prim: &ast::Prim, mut venv: &mut V
                     ast::Item::Init(ident_node, expr_node)
                         => (ident_node.data().clone(), check_expr(&expr_node, &mut venv, fenv, lexer)?),
                 };
+                if let Some(_) = venv_get_in_scope(venv, &key) {
+                    return Err(wrap_error_msg(lexer, item_node.span(), "variable redeclared within block"))
+                }
                 venv_insert(venv, key, val);
             }
             Ok(false)
