@@ -45,7 +45,7 @@ fn wrap_error_msg(lexer: &dyn Lexer<u32>, span: &Span, msg: &str) -> String {
     let token_lines = lexer.span_lines_str(*span);
     let ((start_line, start_column), (end_line, end_column)) = lexer.line_col(*span);
 
-    format!("{} at {}:{}-{}:{} \nin {} \nin '{}'",
+    format!("{} at {}:{}-{}:{} \nin\n{} \nin\n'{}'",
         msg, start_line, start_column, end_line, end_column,
         token, token_lines)
 }
