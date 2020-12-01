@@ -9,37 +9,27 @@ use ::lrpar::NonStreamingLexer as Lexer;
 type VEnv = Vec<HashMap<ast::Ident, ast::Prim>>;
 type FEnv = HashMap<ast::Ident, ast::FunType>;
 
-
-trait VarEnv {
-    fn vget(&self, key: &ast::Ident) -> Option<ast::Prim>;
-    fn vinsert(&mut self, key: ast::Ident, key: ast::Prim) -> Option<ast::Prim>;
-    fn vnew(&mut self) -> ();
-    fn vdrop(&mut self) -> ();
+fn venv_get(venv: &VEnv, key: &ast::Ident) -> Option<ast::Prim> {
+    for scope in venv.iter().rev() {
+        if let Some(prim) = scope.get(key) {
+            return Some(prim.clone());
+        }
+    }
+    None
 }
 
-impl VarEnv for VEnv {
-    fn vget(&self, key: &ast::Ident) -> Option<ast::Prim> {
-        for venv in self.iter().rev() {
-            if let Some(prim) = venv.get(key) {
-                return Some(prim.clone());
-            }
-        }
-        None
-    }
+fn venv_insert(venv: &mut VEnv, key: ast::Ident, val: ast::Prim) -> Option<ast::Prim> {
+    let prev = venv_get(venv, &key);
+    venv.last_mut().unwrap().insert(key, val);
+    prev
+}
 
-    fn vinsert(&mut self, key: ast::Ident, val: ast::Prim) -> Option<ast::Prim> {
-        let prev = self.vget(&key);
-        self.last_mut().unwrap().insert(key, val);
-        prev
-    }
+fn venv_enter_scope(venv: &mut VEnv) -> () {
+    venv.push(HashMap::new());
+}
 
-    fn vnew(&mut self) -> () {
-        self.push(HashMap::new());
-    }
-
-    fn vdrop(&mut self) -> () {
-        self.pop();
-    }
+fn venv_exit_scope(venv: &mut VEnv) -> () {
+    venv.pop();
 }
 
 fn wrap_error_msg(lexer: &dyn Lexer<u32>, span: &Span, msg: &str) -> String {
@@ -195,7 +185,7 @@ fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, fenv: &FEnv, lexer: &dyn
             Ok(fun_type.clone())
         },
         ast::Expr::Var(ident_node) => {
-            match venv.vget(ident_node.node()) {
+            match venv_get(venv, ident_node.node()) {
                 Some(prim) => Ok(prim),
                 None => {
                     Err(undeclared_var_msg(lexer, ident_node.span()))
@@ -255,7 +245,7 @@ fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, fenv: &FEnv, lexer: &dyn
 fn check_block(stmts: &Vec<ast::Node<ast::Stmt>>, mut venv: &mut VEnv, fenv: &FEnv, lexer: &dyn Lexer<u32>, block_span: &Span) -> Result<Option<ast::Prim>, String> {
     let mut block_returns = None;
 
-    venv.vnew();
+    venv_enter_scope(venv);
     for stmt in stmts {
         if let Some(stmt_prim) = check_stmt(&stmt, &mut venv, fenv, lexer)? {
             match block_returns.clone() {
@@ -270,7 +260,7 @@ fn check_block(stmts: &Vec<ast::Node<ast::Stmt>>, mut venv: &mut VEnv, fenv: &FE
             }
         }
     }
-    venv.vdrop();
+    venv_exit_scope(venv);
     Ok(block_returns)
 }
 
@@ -289,13 +279,13 @@ fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv, lex
                     ast::Item::Init(ident_node, expr_node)
                         => (ident_node.node().clone(), check_expr(&expr_node, &mut venv, fenv, lexer)?),
                 };
-                venv.vinsert(key, val);
+                venv_insert(venv, key, val);
             }
             Ok(None)
         },
         ast::Stmt::Asgn(ident_node, expr_node) => {
             let expr_prim = check_expr(&expr_node, &mut venv, fenv, lexer)?;
-            match venv.vinsert(ident_node.node().clone(), expr_prim) {
+            match venv_insert(venv, ident_node.node().clone(), expr_prim) {
                 Some(_) => Ok(None),
                 None => Err(undeclared_var_msg(lexer, ident_node.span())),
             }
@@ -303,7 +293,7 @@ fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv, lex
         },
         ast::Stmt::Incr(ident_node) | ast::Stmt::Decr(ident_node) => {
             let ident = ident_node.node().clone();
-            match venv.vget(&ident) {
+            match venv_get(venv, &ident) {
                 Some(ast::Prim::Int) => Ok(Some(ast::Prim::Int)),
                 Some(prim) => Err(type_mismatch_msg(ast::Prim::Int, &prim, lexer, ident_node.span())),
                 None => Err(undeclared_var_msg(lexer, ident_node.span()))
@@ -312,9 +302,9 @@ fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv, lex
         ast::Stmt::If(expr_node, stmt_node) | ast::Stmt::While(expr_node, stmt_node) => {
             let expr_prim = check_expr(&expr_node, &mut venv, fenv, lexer)?;
             if expr_prim == ast::Prim::Bool {
-                venv.vnew();
+                venv_enter_scope(venv);
                 let stmt_return_type = check_stmt(&stmt_node, &mut venv, fenv, lexer)?;
-                venv.vdrop();
+                venv_exit_scope(venv);
                 if let Some(false) = expr_bool(expr_node, lexer)? {
                     Ok(None)
                 } else {
@@ -327,12 +317,12 @@ fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv, lex
         ast::Stmt::IfElse(expr_node, stmt_true_node, stmt_false_node) => {
             let expr_prim = check_expr(&expr_node, &mut venv, fenv, lexer)?;
             if expr_prim == ast::Prim::Bool {
-                venv.vnew();
+                venv_enter_scope(venv);
                 let stmt_true_return_type = check_stmt(&stmt_true_node, &mut venv, fenv, lexer)?;
-                venv.vdrop();
-                venv.vnew();
+                venv_exit_scope(venv);
+                venv_enter_scope(venv);
                 let stmt_false_return_type = check_stmt(&stmt_false_node, &mut venv, fenv, lexer)?;
-                venv.vdrop();
+                venv_exit_scope(venv);
                 match expr_bool(expr_node, lexer)? {
                     Some(true) => Ok(stmt_true_return_type),
                     Some(false) => Ok(stmt_false_return_type),
@@ -361,13 +351,13 @@ fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv, lex
 // w tym momencie żądam returna na końcu funkcji typu różnego niż void
 fn check_fn(fdef: &ast::Node<ast::FunDef>, fenv: &FEnv, lexer: &dyn Lexer<u32>) -> Result<(), String> {
     let mut venv = VEnv::new();
-    venv.vnew();
+    venv_enter_scope(&mut venv);
 
     let (prim_node, _, arg_nodes, block_node) = fdef.node();
     for arg_node in arg_nodes {
         let (arg_prim_node, arg_ident_node) = arg_node.node();
         let (prim, ident) = (arg_prim_node.node(), arg_ident_node.node());
-        if let Some(_) = venv.vinsert(ident.clone(), prim.clone()) {
+        if let Some(_) = venv_insert(&mut venv, ident.clone(), prim.clone()) {
             return Err(wrap_error_msg(lexer, fdef.span(), "Argument name repeated"))
         }
     }
@@ -385,9 +375,9 @@ fn check_fn(fdef: &ast::Node<ast::FunDef>, fenv: &FEnv, lexer: &dyn Lexer<u32>) 
 
     if *expected_type != ast::Prim::Void {
         if let Some(last_stmt_node) = block_node.node().last() {
-            venv.vnew();
+            venv_enter_scope(&mut venv);
             let last_stmt_return_type = check_stmt(last_stmt_node, &mut venv, fenv, lexer)?;
-            venv.vdrop();
+            venv_exit_scope(&mut venv);
 
             if let None = last_stmt_return_type {
                 return Err(wrap_error_msg(lexer, fdef.span(), "Last statement does not return"));
