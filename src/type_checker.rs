@@ -1,7 +1,4 @@
 // TODO: node() => data()
-// TODO: statyczne sprawdzanie const booli
-// ^: expr_int, expr_bool
-
 
 use std::collections::HashMap;
 use crate::latte_y as ast;
@@ -61,6 +58,11 @@ fn undeclared_var_msg(lexer: &dyn Lexer<u32>, span: &Span) -> String {
 
 fn type_mismatch_msg(expected_type: ast::Prim, actual_type: &ast::Prim, lexer: &dyn Lexer<u32>, span: &Span) -> String {
     let msg = format!("type mismatch at: expected {}, got {}", expected_type, actual_type);
+    wrap_error_msg(lexer, span, &msg)
+}
+
+fn multiple_return_types(prim1: &ast::Prim, prim2: &ast::Prim, lexer: &dyn Lexer<u32>, span: &Span) -> String {
+    let msg = format!("multiple return types: {} and {}", prim1, prim2);
     wrap_error_msg(lexer, span, &msg)
 }
 
@@ -250,32 +252,35 @@ fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, fenv: &FEnv, lexer: &dyn
 
 }
 
-fn check_block(stmts: &Vec<ast::Node<ast::Stmt>>, mut venv: &mut VEnv, fenv: &FEnv, lexer: &dyn Lexer<u32>) -> Result<Option<ast::Prim>, String> {
+fn check_block(stmts: &Vec<ast::Node<ast::Stmt>>, mut venv: &mut VEnv, fenv: &FEnv, lexer: &dyn Lexer<u32>, block_span: &Span) -> Result<Option<ast::Prim>, String> {
+    let mut block_returns = None;
+
     venv.vnew();
     for stmt in stmts {
-        check_stmt(&stmt, &mut venv, fenv, lexer)?;
+        if let Some(stmt_prim) = check_stmt(&stmt, &mut venv, fenv, lexer)? {
+            match block_returns.clone() {
+                None => {
+                    block_returns = Some(stmt_prim.clone());
+                },
+                Some(prev_stmt_prim) => {
+                    if prev_stmt_prim != stmt_prim {
+                        return Err(multiple_return_types(&prev_stmt_prim, &stmt_prim, lexer, block_span));
+                    }
+                }
+            }
+        }
     }
-    let return_type = match stmts.last() {
-        None => Some(ast::Prim::Void),
-        Some(last_stmt_node) => match last_stmt_node.node() {
-            ast::Stmt::VRet => Some(ast::Prim::Void),
-            ast::Stmt::Ret(expr_node) => Some(check_expr(&expr_node, &mut venv, fenv, lexer)?),
-            _ => None,
-        },
-    };
     venv.vdrop();
-    Ok(return_type)
+    Ok(block_returns)
 }
 
 // TODO: typ na Result<Option<ast::Prim>, ()>, żeby sprawdzać typ returna
-fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv, lexer: &dyn Lexer<u32>) -> Result<(), String> {
+fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv, lexer: &dyn Lexer<u32>) -> Result<Option<ast::Prim>, String> {
     match stmt.node() {
-        ast::Stmt::Empty => Ok(()),
-        ast::Stmt::VRet => Ok(()),
-        ast::Stmt::Block(block_node) => {
-            check_block(block_node.node(), &mut venv, fenv, lexer)?;
-            Ok(())
-        }
+        ast::Stmt::Empty => Ok(None),
+        ast::Stmt::VRet => Ok(Some(ast::Prim::Void)),
+        ast::Stmt::Block(block_node) => check_block(block_node.node(), &mut venv, fenv, lexer, block_node.span()),
+        ast::Stmt::Expr(expr_node) | ast::Stmt::Ret(expr_node) => Ok(Some(check_expr(&expr_node, &mut venv, fenv, lexer)?)),
         ast::Stmt::Decl(prim_node, item_nodes) => {
             let prim = prim_node.node();
             for item_node in item_nodes {
@@ -286,12 +291,12 @@ fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv, lex
                 };
                 venv.vinsert(key, val);
             }
-            Ok(())
+            Ok(None)
         },
         ast::Stmt::Asgn(ident_node, expr_node) => {
             let expr_prim = check_expr(&expr_node, &mut venv, fenv, lexer)?;
             match venv.vinsert(ident_node.node().clone(), expr_prim) {
-                Some(_) => Ok(()),
+                Some(_) => Ok(None),
                 None => Err(undeclared_var_msg(lexer, ident_node.span())),
             }
 
@@ -299,36 +304,53 @@ fn check_stmt(stmt: &ast::Node<ast::Stmt>, mut venv: &mut VEnv, fenv: &FEnv, lex
         ast::Stmt::Incr(ident_node) | ast::Stmt::Decr(ident_node) => {
             let ident = ident_node.node().clone();
             match venv.vget(&ident) {
-                Some(ast::Prim::Int) => Ok(()),
+                Some(ast::Prim::Int) => Ok(Some(ast::Prim::Int)),
                 Some(prim) => Err(type_mismatch_msg(ast::Prim::Int, &prim, lexer, ident_node.span())),
                 None => Err(undeclared_var_msg(lexer, ident_node.span()))
             }
-        },
-        ast::Stmt::Expr(expr_node) | ast::Stmt::Ret(expr_node) => {
-            check_expr(&expr_node, &mut venv, fenv, lexer)?;
-            Ok(())
         },
         ast::Stmt::If(expr_node, stmt_node) | ast::Stmt::While(expr_node, stmt_node) => {
             let expr_prim = check_expr(&expr_node, &mut venv, fenv, lexer)?;
             if expr_prim == ast::Prim::Bool {
                 venv.vnew();
-                check_stmt(&stmt_node, &mut venv, fenv, lexer)?;
+                let stmt_return_type = check_stmt(&stmt_node, &mut venv, fenv, lexer)?;
                 venv.vdrop();
-                Ok(())
+                if let Some(false) = expr_bool(expr_node, lexer)? {
+                    Ok(None)
+                } else {
+                    Ok(stmt_return_type)
+                }
             } else {
                 Err(type_mismatch_msg(ast::Prim::Bool, &expr_prim, lexer, expr_node.span()))
             }
         },
-        ast::Stmt::IfElse(expr_node, stmt1_node, stmt2_node) => {
+        ast::Stmt::IfElse(expr_node, stmt_true_node, stmt_false_node) => {
             let expr_prim = check_expr(&expr_node, &mut venv, fenv, lexer)?;
             if expr_prim == ast::Prim::Bool {
                 venv.vnew();
-                check_stmt(&stmt1_node, &mut venv, fenv, lexer)?;
+                let stmt_true_return_type = check_stmt(&stmt_true_node, &mut venv, fenv, lexer)?;
                 venv.vdrop();
                 venv.vnew();
-                check_stmt(&stmt2_node, &mut venv, fenv, lexer)?;
+                let stmt_false_return_type = check_stmt(&stmt_false_node, &mut venv, fenv, lexer)?;
                 venv.vdrop();
-                Ok(())
+                match expr_bool(expr_node, lexer)? {
+                    Some(true) => Ok(stmt_true_return_type),
+                    Some(false) => Ok(stmt_false_return_type),
+                    _ => {
+                        match (stmt_true_return_type, stmt_false_return_type) {
+                            (Some(prim_true), Some(prim_false)) => {
+                                if prim_true != prim_false {
+                                    Err(multiple_return_types(&prim_true, &prim_false, lexer, stmt.span()))
+                                } else {
+                                    Ok(Some(prim_true))
+                                }
+                            },
+                            (None, Some(prim)) => Ok(Some(prim)),
+                            (Some(prim), None) => Ok(Some(prim)),
+                            (_, _) => Ok(None),
+                        }
+                    },
+                }
             } else {
                 Err(type_mismatch_msg(ast::Prim::Bool, &expr_prim, lexer, expr_node.span()))
             }
@@ -350,15 +372,30 @@ fn check_fn(fdef: &ast::Node<ast::FunDef>, fenv: &FEnv, lexer: &dyn Lexer<u32>) 
         }
     }
 
-    let stmts = block_node.node();
-
     let expected_type = prim_node.node();
-    let actual_type = match check_block(&stmts, &mut venv, fenv, lexer)? {
+    let actual_type = match check_block(block_node.node(), &mut venv, fenv, lexer, block_node.span())? {
         None => {
-            return Err(wrap_error_msg(lexer, fdef.span(), "No return statement in function"));
+            match *expected_type {
+                ast::Prim::Void => ast::Prim::Void,
+                _ => return Err(wrap_error_msg(lexer, fdef.span(), "No return statement in nonvoid function")),
+            }
         }
         Some(prim) => prim,
     };
+
+    if *expected_type != ast::Prim::Void {
+        if let Some(last_stmt_node) = block_node.node().last() {
+            venv.vnew();
+            let last_stmt_return_type = check_stmt(last_stmt_node, &mut venv, fenv, lexer)?;
+            venv.vdrop();
+
+            if let None = last_stmt_return_type {
+                return Err(wrap_error_msg(lexer, fdef.span(), "Last statement does not return"));
+            }
+        } else {
+            return Err(wrap_error_msg(lexer, fdef.span(), "Empty nonvoid function"));
+        }
+    }
 
     if actual_type != *expected_type {
         let msg = format!("Wrong return type in: expected: {}, got: {}",
