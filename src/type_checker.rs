@@ -1,4 +1,3 @@
-// TODO: int i = i + 1 <== właściwe związanie
 // TODO: poprawianie wielu `match` (guardy)
 // TODO?: przerobienie operacji na unarne/binarne z operatorem
 
@@ -67,7 +66,7 @@ fn type_mismatch_msg(expected_type: ast::Prim, actual_type: &ast::Prim, lexer: &
 
 fn wrong_operator_arguments(expected_types: &Vec<(ast::Prim, ast::Prim)>, actual_types: (ast::Prim, ast::Prim),
     lexer: &dyn Lexer<u32>, span: &Span) -> String {
-    let msg = format!("type mismatch at: expected {:?}, got {:?}", expected_types, actual_types);
+    let msg = format!("Wrong operator arguments: acceptable {:?}, got {:?}", expected_types, actual_types);
     wrap_error_msg(lexer, span, &msg)
 }
 
