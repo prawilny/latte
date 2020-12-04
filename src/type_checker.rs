@@ -1,6 +1,5 @@
 // TODO: formatter
-// TODO: sprawdzenie odpowiedniości spanów przy błędach
-// TODO: doprowadzenie do pełnej zgodności ze specyfikacją
+// TODO: doprowadzenie postaci rozwiązania do pełnej zgodności ze specyfikacją
 
 use std::collections::HashMap;
 use crate::latte_y as ast;
@@ -445,7 +444,7 @@ fn fn_env(fdefs: &Vec<ast::Node<ast::FunDef>>, lexer: &dyn Lexer<u32>) -> Result
 
         let (fn_type, fn_name) = (prim_node.data(), ident_node.data());
         if let Some(_) = fenv.insert(fn_name.clone(), (fn_type.clone(), arg_types)) {
-            return Err(wrap_error_msg(lexer, fn_name.span(), "function name not unique"))
+            return Err(wrap_error_msg(lexer, ident_node.span(), "function name not unique"))
         }
     }
 
