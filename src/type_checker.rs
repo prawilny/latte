@@ -439,14 +439,13 @@ fn fn_env(fdefs: &Vec<ast::Node<ast::FunDef>>, lexer: &dyn Lexer<u32>) -> Result
     for fdef in fdefs.iter() {
         let (prim_node, ident_node, arg_nodes, _) = fdef.data();
         let arg_types = arg_nodes.iter().map(|arg_node| {
-            match arg_node.data() {
-                (prim_node, _) => prim_node.data().clone()
-            }
+            let (prim_node, _) = arg_node.data();
+            return prim_node.data().clone()
         }).collect();
 
         let (fn_type, fn_name) = (prim_node.data(), ident_node.data());
         if let Some(_) = fenv.insert(fn_name.clone(), (fn_type.clone(), arg_types)) {
-            return Err(wrap_error_msg(lexer, fdef.span(), "function name not unique"))
+            return Err(wrap_error_msg(lexer, fn_name.span(), "function name not unique"))
         }
     }
 
