@@ -1,5 +1,6 @@
-// TODO: poprawianie wielu `match` (guardy)
-// TODO?: przerobienie operacji na unarne/binarne z operatorem
+// TODO: formatter
+// TODO: sprawdzenie odpowiedniości spanów przy błędach
+// TODO: doprowadzenie do pełnej zgodności ze specyfikacją
 
 use std::collections::HashMap;
 use crate::latte_y as ast;
@@ -41,13 +42,18 @@ fn venv_exit_scope(venv: &mut VEnv) -> () {
 }
 
 fn wrap_error_msg(lexer: &dyn Lexer<u32>, span: &Span, msg: &str) -> String {
-    let token = lexer.span_str(*span);
-    let token_lines = lexer.span_lines_str(*span);
+    let offender = lexer.span_str(*span);
+    let context = lexer.span_lines_str(*span);
     let ((start_line, start_column), (end_line, end_column)) = lexer.line_col(*span);
 
-    format!("{} at {}:{}-{}:{} \nin\n{} \nin\n'{}'",
-        msg, start_line, start_column, end_line, end_column,
-        token, token_lines)
+    let wrapped = format!("{} at {}:{}-{}:{}\nin\n'{}'",
+        msg, start_line, start_column, end_line, end_column, offender);
+
+    if offender.len() < context.len() {
+        format!("{}\nin\n'{}'", wrapped, context)
+    } else {
+        wrapped
+    }
 }
 
 fn undeclared_var_msg(lexer: &dyn Lexer<u32>, span: &Span) -> String {
@@ -71,10 +77,10 @@ fn wrong_operator_arguments(expected_types: &Vec<(ast::Prim, ast::Prim)>, actual
 }
 
 pub fn check_types(fdefs: &Vec<ast::Node<ast::FunDef>>, lexer: &dyn Lexer<u32>) -> Result<(), String> {
-    let env = fn_env(fdefs, lexer)?;
+    let fenv = fn_env(fdefs, lexer)?;
 
     for fdef in fdefs {
-        check_fn(fdef, &env, lexer)?;
+        check_fn(fdef, &fenv, lexer)?;
     }
 
     Ok(())
@@ -122,7 +128,7 @@ fn expr_bool(expr: &ast::Node<ast::Expr>, lexer: &dyn Lexer<u32>) -> Result<Opti
         },
         ast::Expr::NEQ(expr1_node, expr2_node) |
         ast::Expr::EQ(expr1_node, expr2_node) => {
-            match (expr_int(expr1_node, lexer)?, expr_int(expr2_node, lexer)?, expr_int(expr1_node, lexer)?, expr_int(expr2_node, lexer)?) {
+            match (expr_int(expr1_node, lexer)?, expr_int(expr2_node, lexer)?, expr_bool(expr1_node, lexer)?, expr_bool(expr2_node, lexer)?) {
                 (Some(e1), Some(e2), _, _) => {
                     match expr.data() {
                         ast::Expr::NEQ(_, _) => Ok(Some(e1 != e2)),
@@ -193,9 +199,7 @@ fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, fenv: &FEnv, lexer: &dyn
     match expr.data() {
         ast::Expr::App(ident_node, expr_nodes) => {
             let (fun_type, fun_arg_types) = match fenv.get(ident_node.data()) {
-                None => {
-                    return Err(wrap_error_msg(lexer, ident_node.span(), "use of undeclared function"));
-                }
+                None => return Err(wrap_error_msg(lexer, ident_node.span(), "use of undeclared function")),
                 Some(ft) => ft,
             };
 

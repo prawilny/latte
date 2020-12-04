@@ -9,7 +9,6 @@ use ::lrpar::Span;
 
 mod type_checker;
 
-// TODO: wyłączyć error recovery później
 lrlex::lrlex_mod!("latte.l");
 lrpar::lrpar_mod!("latte.y");
 

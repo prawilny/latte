@@ -1,5 +1,4 @@
 %start FunDefs
-%avoid_insert "INT"
 %%
 
 FunDefs -> Result<Vec<Node<FunDef>>, ()>:
