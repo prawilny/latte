@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -e
+
+BASEDIR=$(dirname "$0")
+FILE_PATH=$1
+FILE_PATH_STEM=${FILE_PATH%.lat}
+
+$BASEDIR/target/release/latte ${FILE_PATH_STEM}.lat
