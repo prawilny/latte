@@ -1,11 +1,11 @@
 use std::env;
-use std::process;
 use std::fs;
 use std::path::Path;
+use std::process;
 
+use ::lrpar::Span;
 use latte_l as lexer;
 use latte_y as ast;
-use ::lrpar::Span;
 
 mod type_checker;
 
@@ -22,7 +22,7 @@ fn main() {
         _ => {
             println!("usage: {} FILEPATH", &args[0]);
             process::exit(1);
-        },
+        }
     };
 
     let lexerdef = lexer::lexerdef();
