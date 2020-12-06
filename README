@@ -40,11 +40,9 @@ biblioteka grmtools (https://softdevteam.github.io/grmtools/master/book/quicksta
 Struktura projektu:
 ========================================
 .
-├── bad                 - katalog zawierający przykłady niepoprawnych programów
 ├── build.rs            - skrypt do statycznego generowania kodu parsera
 ├── Cargo.lock          - lista zależności wraz z wersjami
 ├── Cargo.toml          - specyfikacja crate'a (pakietu)
-├── good                - katalog zawierający przykłady poprawnych programów
 ├── latc                - wrapper na type checker
 ├── Makefile
 ├── README
