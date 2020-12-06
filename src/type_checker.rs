@@ -609,7 +609,7 @@ fn fn_env(fdefs: &Vec<ast::Node<ast::FunDef>>, lexer: &dyn Lexer<u32>) -> Result
                 return Err(wrap_error_msg(
                     lexer,
                     arg_node.span(),
-                    "function argument is void"
+                    "function argument is void",
                 ));
             } else {
                 arg_types.push(arg_prim.clone());
