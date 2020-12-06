@@ -484,7 +484,6 @@ fn parse_int(s: &str) -> Result<IntType, ()> {
     match s.parse::<IntType>() {
         Ok(val) => Ok(val),
         Err(_) => {
-            eprintln!("{} cannot be represented as a IntType", s);
             Err(())
         }
     }

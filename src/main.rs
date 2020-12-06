@@ -35,13 +35,21 @@ fn main() {
         }
         process::exit(2);
     }
-    let parsed = res.unwrap().unwrap();
+    let parsed = match res.unwrap() {
+        Ok(parsed) => parsed,
+        Err(()) => {
+            eprintln!("ERROR");
+            eprintln!("unexpected error during parsing");
+            eprintln!("most probably the program encountered an integer that is too big");
+            process::exit(3);
+        }
+    };
     match type_checker::check_types(&parsed, &lexer) {
         Ok(_) => (),
         Err(msg) => {
             eprintln!("ERROR");
             eprintln!("{}", msg);
-            process::exit(3);
+            process::exit(4);
         }
     }
 
