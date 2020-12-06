@@ -40,8 +40,8 @@ fn venv_exit_scope(venv: &mut VEnv) -> () {
 }
 
 fn wrap_error_msg(lexer: &dyn Lexer<u32>, span: &Span, msg: &str) -> String {
-    let offender = lexer.span_str(*span);
-    let context = lexer.span_lines_str(*span);
+    let offender = lexer.span_str(*span).trim();
+    let context = lexer.span_lines_str(*span).trim();
     let ((start_line, start_column), (end_line, end_column)) = lexer.line_col(*span);
 
     let wrapped = format!(
