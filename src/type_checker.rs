@@ -67,7 +67,7 @@ fn wrong_return_msg(
     span: &Span,
 ) -> String {
     let msg = format!(
-        "wrong return type: expected {}, got: {}",
+        "wrong return type: expected {}, got {}",
         expected_type, actual_type
     );
     wrap_error_msg(lexer, span, &msg)
@@ -408,6 +408,13 @@ fn check_stmt(
         }
         ast::Stmt::Decl(prim_node, item_nodes) => {
             let decl_prim = prim_node.data();
+            if *decl_prim == ast::Prim::Void {
+                return Err(wrap_error_msg(
+                    lexer,
+                    stmt.span(),
+                    "declaration of void variables",
+                ));
+            }
             for item_node in item_nodes {
                 let (var_name, var_prim) = match item_node.data() {
                     ast::Item::NoInit(ident_node) => (ident_node.data().clone(), decl_prim.clone()),
@@ -593,13 +600,21 @@ fn fn_env(fdefs: &Vec<ast::Node<ast::FunDef>>, lexer: &dyn Lexer<u32>) -> Result
 
     for fdef in fdefs.iter() {
         let (prim_node, ident_node, arg_nodes, _) = fdef.data();
-        let arg_types = arg_nodes
-            .iter()
-            .map(|arg_node| {
-                let (prim_node, _) = arg_node.data();
-                return prim_node.data().clone();
-            })
-            .collect();
+
+        let mut arg_types = Vec::new();
+        for arg_node in arg_nodes {
+            let (arg_prim_node, _) = arg_node.data();
+            let arg_prim = arg_prim_node.data();
+            if *arg_prim == ast::Prim::Void {
+                return Err(wrap_error_msg(
+                    lexer,
+                    arg_node.span(),
+                    "function argument is void"
+                ));
+            } else {
+                arg_types.push(arg_prim.clone());
+            }
+        }
 
         let (fn_type, fn_name) = (prim_node.data(), ident_node.data());
         if let Some(_) = fenv.insert(fn_name.clone(), (fn_type.clone(), arg_types)) {
