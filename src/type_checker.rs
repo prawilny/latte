@@ -122,13 +122,16 @@ fn expr_bool(expr: &ast::Node<ast::Expr>, lexer: &dyn Lexer<u32>) -> Result<Opti
                 Ok(None)
             }
         }
-        ast::Expr::And(expr1_node, expr2_node) | ast::Expr::Or(expr1_node, expr2_node) => {
+        ast::Expr::And(expr1_node, expr2_node) => {
             match (expr_bool(expr1_node, lexer)?, expr_bool(expr2_node, lexer)?) {
-                (Some(b1), Some(b2)) => match expr.data() {
-                    ast::Expr::And(_, _) => Ok(Some(b1 && b2)),
-                    ast::Expr::Or(_, _) => Ok(Some(b1 || b2)),
-                    _ => unreachable!(),
-                },
+                (Some(b1), Some(b2)) => Ok(Some(b1 && b2)),
+                _ => Ok(None),
+            }
+        }
+        ast::Expr::Or(expr1_node, expr2_node) => {
+            match (expr_bool(expr1_node, lexer)?, expr_bool(expr2_node, lexer)?) {
+                (Some(b1), Some(b2)) => Ok(Some(b1 || b2)),
+                (Some(b), None) | (None, Some(b)) => Ok(Some(b)),
                 _ => Ok(None),
             }
         }
@@ -335,7 +338,7 @@ fn check_expr(
         | ast::Expr::LEQ(expr1_node, expr2_node)
         | ast::Expr::GTH(expr1_node, expr2_node)
         | ast::Expr::GEQ(expr1_node, expr2_node) => {
-            let acceptable_prims = vec![(ast::Prim::Bool, ast::Prim::Bool)];
+            let acceptable_prims = vec![(ast::Prim::Int, ast::Prim::Int)];
             match (
                 check_expr(expr1_node, venv, fenv, lexer)?,
                 check_expr(expr2_node, venv, fenv, lexer)?,
