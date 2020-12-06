@@ -39,7 +39,7 @@ void "VOID"
 \( "("
 \) ")"
 
-[a-zA-z][a-zA-Z0-9]* "IDENT"
+[a-zA-z_][a-zA-Z0-9_]* "IDENT"
 0|([1-9][0-9]*) "INTEGER"
 "[^"]*" "STRING"
 
