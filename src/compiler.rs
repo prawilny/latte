@@ -4,7 +4,10 @@ use crate::latte_y as ast;
 static REG_OP_TARGET: &str = "r12";
 static REG_OP_ARG: &str = "r13";
 static REG_FN: &str = "rax";
-static MEM_WORD: &str = "qword";
+
+static MEM_VAR_SIZE: &str = "qword";
+
+static OP_MOV: &str = "mov";
 
 // TODO: zapisanie stringów w .data
 // TODO: uwaga na scope w if/while
@@ -21,8 +24,8 @@ fn error(msg: &str) -> ! {
     std::process::exit(42)
 }
 
-fn vstack_get_offset(vstack: &VStack, ident: ast::Ident) -> usize {
-    match vstack.0.iter().position(|i| *i == ident) {
+fn vstack_get_offset(vstack: &VStack, ident: &ast::Ident) -> usize {
+    match vstack.0.iter().position(|i| i == ident) {
         None => error("use of undeclared variable"),
         Some(offset) => offset,
     }
@@ -79,6 +82,16 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, vstack: &mut VStack) {
 
 fn compile_expr(expr: &ast::Node<ast::Expr>, vstack: &VStack) {
     match expr.data() {
+        ast::Expr::Var(ident_node) => {
+            let offset = vstack_get_offset(vstack, ident_node.data());
+            println!(
+                "{} {} {}",
+                OP_MOV,
+                REG_OP_TARGET,
+                format!("{}[{}]", MEM_VAR_SIZE, offset)
+            );
+        }
+        ast::Expr::Int(n) => println!("{} {} {}", OP_MOV, REG_OP_TARGET, n.to_string()),
         _ => unimplemented!(),
     }
 }
