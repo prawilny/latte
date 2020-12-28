@@ -8,6 +8,7 @@ use latte_l as lexer;
 use latte_y as ast;
 
 mod type_checker;
+mod compiler;
 
 lrlex::lrlex_mod!("latte.l");
 lrpar::lrpar_mod!("latte.y");
@@ -44,6 +45,7 @@ fn main() {
             process::exit(3);
         }
     };
+
     match type_checker::check_types(&parsed, &lexer) {
         Ok(_) => (),
         Err(msg) => {
@@ -53,6 +55,7 @@ fn main() {
         }
     }
 
+    compiler::compile(&parsed);
     eprintln!("OK");
     process::exit(0);
 }
