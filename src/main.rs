@@ -7,8 +7,8 @@ use ::lrpar::Span;
 use latte_l as lexer;
 use latte_y as ast;
 
-mod type_checker;
 mod compiler;
+mod type_checker;
 
 lrlex::lrlex_mod!("latte.l");
 lrpar::lrpar_mod!("latte.y");
