@@ -1,8 +1,0 @@
-#!/bin/bash
-
-set -e
-
-BASEDIR=$(dirname "$0")
-FILE_PATH=$1
-
-$BASEDIR/target/release/latte $FILE_PATH
