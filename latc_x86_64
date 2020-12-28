@@ -8,4 +8,4 @@ FILE_PATH_STEM=${FILE_PATH%.lat}
 
 $BASEDIR/target/release/latte ${FILE_PATH_STEM}.lat > ${FILE_PATH_STEM}.s
 
-clang -o ${FILE_PATH_STEM} -masm=intel ${FILE_PATH_STEM}.s $BASEDIR/lib/runtime.o
+clang -o ${FILE_PATH_STEM} -masm=intel ${FILE_PATH_STEM}.s $BASEDIR/lib/runtime.o -lreadline
