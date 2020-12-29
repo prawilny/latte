@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use crate::latte_y as ast;
 
 // r12 - r15: "Preserved across function calls"
@@ -13,13 +15,30 @@ static OP_MOV: &str = "mov";
 // TODO: uwaga na scope w if/while
 // TODO: czy wywalanie kompilatora w przypadku błędu typecheckera jest dobre?
 //       (niby "ERROR" w pierwszej lini stderr itd)
+// TODO: null na końcu stringów?
+// TODO: dodatkowe funkcje w runtime (długość stringa) lub jakoś inaczej długość stringa
 
 // wychodzenie ze scope
 // (identyfikatory na stosie,
 //    długość stosu do tego miejsca)
 type VStack = (Vec<ast::Ident>, Vec<usize>);
+type Label = String;
+type Literal = String;
+type Labels = HashSet<Label>;
+
+// TODO: deduplikacja stringów w .rodata
+// type StrEnv = HashMap<Literal, Label>;
+
+// (dyrektywy, .rodata, .text)
+#[derive(Default)]
+struct Output {
+    directives: Vec<String>,
+    rodata: Vec<String>,
+    text: Vec<String>,
+}
 
 fn error(msg: &str) -> ! {
+    eprintln!("Error");
     eprintln!("type checker didn't catch error: {}", msg);
     std::process::exit(42)
 }
@@ -51,8 +70,8 @@ fn vstack_exit_scope(vstack: &mut VStack) {
     println!("inc rsp {}", h_before - h_after);
 }
 
-fn directives(fdefs: &Vec<ast::Node<ast::FunDef>>) {
-    println!(".intel_syntax");
+fn directives(fdefs: &Vec<ast::Node<ast::FunDef>>, output: &mut Output) {
+    output.directives.push(".intel_syntax".to_string());
 
     for fdef in fdefs {
         let fn_name = &fdef.data().1.data();
@@ -61,17 +80,33 @@ fn directives(fdefs: &Vec<ast::Node<ast::FunDef>>) {
 }
 
 pub fn compile(fdefs: &Vec<ast::Node<ast::FunDef>>) {
-    directives(&fdefs);
+    let mut output = Output::default();
+    directives(&fdefs, &mut output);
 
     // TODO: skasować type hint
     let mut vstack: VStack = (Vec::new(), vec![0]);
 
     for fdef in fdefs {
-        compile_fn(fdef, &mut vstack);
+        compile_fn(fdef, &mut vstack, &mut output);
+    }
+
+    for directive in output.directives {
+        println!("{}", directive);
+    }
+
+    println!();
+    println!(".rodata");
+    for rodata in output.rodata {
+        println!("{}", rodata);
+    }
+
+    println!();
+    for instruction in output.text {
+        println!("{}", instruction);
     }
 }
 
-fn compile_fn(fdef: &ast::Node<ast::FunDef>, vstack: &mut VStack) {
+fn compile_fn(fdef: &ast::Node<ast::FunDef>, vstack: &mut VStack, output: &mut Output) {
     // println!("
     //     main:
     //       ret
@@ -80,18 +115,20 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, vstack: &mut VStack) {
     unimplemented!();
 }
 
-fn compile_expr(expr: &ast::Node<ast::Expr>, vstack: &VStack) {
+fn compile_expr(expr: &ast::Node<ast::Expr>, vstack: &VStack, output: &mut Output) {
     match expr.data() {
         ast::Expr::Var(ident_node) => {
             let offset = vstack_get_offset(vstack, ident_node.data());
-            println!(
+            output.text.push(format!(
                 "{} {} {}",
                 OP_MOV,
                 REG_OP_TARGET,
                 format!("{}[{}]", MEM_VAR_SIZE, offset)
-            );
+            ));
         }
-        ast::Expr::Int(n) => println!("{} {} {}", OP_MOV, REG_OP_TARGET, n.to_string()),
+        ast::Expr::Int(n) => output.text.push(format!("{} {} {}", OP_MOV, REG_OP_TARGET, n.to_string())),
+        ast::Expr::Bool(b) => output.text.push(format!("{} {} {}", OP_MOV, REG_OP_TARGET, if *b { 1 } else { 0 })),
+        ast::Expr::Str(s) => {}
         _ => unimplemented!(),
     }
 }
