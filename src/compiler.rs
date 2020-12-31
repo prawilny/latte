@@ -4,8 +4,10 @@ use crate::latte_y as ast;
 
 // r12 - r15: "Preserved across function calls"
 static REG_OP_TARGET: &str = "r12";
+static REG_OP_TARGET_BYTE: &str = "r12b";
 static REG_OP_AUX: &str = "r13";
 // TODO: przerobić na maszynę stosową
+// tj: wrapperu na push i pop wpisujące/kasujące z VStack ".stack"
 static REG_STORAGE: &str = "r14";
 static REG_TMP: &str = "r15";
 
@@ -35,11 +37,21 @@ static OP_IDIV: &str = "idiv";
 static OP_NEGATION: &str = "neg";
 static OP_POP: &str = "pop";
 static OP_PUSH: &str = "push";
-static OP_PUSH_RFLAGS: &str = "pushfq";
-static OP_LOG_SHIFTR: &str = "shr";
+// static OP_PUSH_RFLAGS: &str = "pushfq";
+// static OP_LOG_SHIFTR: &str = "shr";
 // static OP_NUM_SHIFTR: &str = "sar";
 static OP_CALL: &str = "call";
 static OP_CMP: &str = "cmp";
+
+static OP_SETcc_EQ: &str = "sete";
+static OP_SETcc_NEQ: &str = "setne";
+static OP_SETcc_LTH: &str = "setl";
+static OP_SETcc_LEQ: &str = "setle";
+static OP_SETcc_GTH: &str = "setg";
+static OP_SETcc_GEQ: &str = "setge";
+static OP_SETcc_NONZERO: &str = "setnz";
+
+
 
 // bit >= 0
 static BIT_ZERO_FLAG: usize = 6;
@@ -191,11 +203,10 @@ fn compile_expr(
         }
         ast::Expr::Not(expr_node) => {
             compile_expr(expr_node, vstack, labels, output);
-            output.text.push(OP_PUSH_RFLAGS.to_string());
-            output.text.push(format!("{} {}", OP_POP, REG_OP_TARGET));
-            output.text.push(format!("{} {} {}", OP_AND, REG_OP_TARGET, 1 << BIT_ZERO_FLAG));
-            output.text.push(format!("{} {} {}", OP_LOG_SHIFTR, REG_OP_TARGET, BIT_ZERO_FLAG - 1));
-            output.text.push(format!("{} {} {}", OP_XOR, REG_OP_TARGET, 1)); // 0 => 1, 1 => 0
+            output.text.push(format!("{} {} {}", OP_MOV, REG_OP_AUX, REG_OP_TARGET));
+            output.text.push(format!("{} {} {}", OP_XOR, REG_OP_TARGET, REG_OP_TARGET));
+            output.text.push(format!("{} {} {}", OP_CMP, REG_OP_AUX, 0));
+            output.text.push(format!("{} {}", OP_SETcc_NEQ, REG_OP_TARGET_BYTE));
         }
         ast::Expr::App(fname_node, arg_expr_nodes) => {
             let fname = fname_node.data();
@@ -260,21 +271,29 @@ fn compile_expr(
             output.text.push(format!("{} {} {}", opcode, REG_OP_TARGET, REG_STORAGE));
         }
         ast::Expr::EQ(expr1, expr2) |
-        ast::Expr::NEQ(expr1, expr2) => {
+        ast::Expr::NEQ(expr1, expr2) |
+        ast::Expr::LTH(expr1, expr2) |
+        ast::Expr::LEQ(expr1, expr2) |
+        ast::Expr::GTH(expr1, expr2) |
+        ast::Expr::GEQ(expr1, expr2) => {
             compile_expr(&expr2, vstack, labels, output);
             output.text.push(format!("{} {} {}", OP_MOV, REG_STORAGE, REG_OP_TARGET));
             compile_expr(&expr1, vstack, labels, output);
+            output.text.push(format!("{} {} {}", OP_MOV, REG_OP_AUX, REG_OP_TARGET));
 
-            output.text.push(format!("{} {} {}", OP_CMP, REG_OP_TARGET, REG_STORAGE));
+            output.text.push(format!("{} {} {}", OP_XOR, REG_OP_TARGET, REG_OP_TARGET));
 
-            output.text.push(OP_PUSH_RFLAGS.to_string());
-            output.text.push(format!("{} {}", OP_POP, REG_OP_TARGET));
-            output.text.push(format!("{} {} {}", OP_AND, REG_OP_TARGET, 1 << BIT_ZERO_FLAG));
-            output.text.push(format!("{} {} {}", OP_LOG_SHIFTR, REG_OP_TARGET, BIT_ZERO_FLAG - 1));
-
-            if let ast::Expr::NEQ(_, _) = expr.data() {
-                output.text.push(format!("{} {} {}", OP_XOR, REG_OP_TARGET, 1)); // 0 => 1, 1 => 0
-            }
+            output.text.push(format!("{} {} {}", OP_CMP, REG_OP_AUX, REG_STORAGE));
+            let opcode = match expr.data() {
+                ast::Expr::EQ(_, _)  => OP_SETcc_EQ,
+                ast::Expr::NEQ(_, _) => OP_SETcc_NEQ,
+                ast::Expr::LTH(_, _) => OP_SETcc_LTH,
+                ast::Expr::LEQ(_, _) => OP_SETcc_LEQ,
+                ast::Expr::GTH(_, _) => OP_SETcc_GTH,
+                ast::Expr::GEQ(_, _) => OP_SETcc_GEQ,
+                _ => unreachable!(),
+            };
+            output.text.push(format!("{} {}", opcode, REG_OP_TARGET_BYTE));
         }
         _ => unimplemented!(),
     }
