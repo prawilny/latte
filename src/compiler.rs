@@ -1,5 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
+use lrpar::Span;
+
 use crate::latte_y as ast;
 
 static REG_OP_TARGET: &str = "r11";
@@ -39,6 +41,7 @@ static OP_PUSH: &str = "push";
 // static OP_NUM_SHIFTR: &str = "sar";
 static OP_CALL: &str = "call";
 static OP_CMP: &str = "cmp";
+static OP_RET: &str = "ret";
 
 static OP_SETcc_EQ: &str = "sete";
 static OP_SETcc_NEQ: &str = "setne";
@@ -60,6 +63,8 @@ static BIT_ZERO_FLAG: usize = 6;
 // TODO: dodatkowe funkcje w runtime (długość stringa) lub jakoś inaczej długość stringa
 // TODO: czy mam błąd nie rezerwując miejsca na zmienne lokalne z góry?
 // TODO: upewnienie się, że flagi są ustawiane przez dobre instrukcje
+
+// TODO: sprawdzenie minimalności mutowalności argumentów
 
 // wychodzenie ze scope
 // (identyfikatory na stosie,
@@ -86,7 +91,7 @@ fn error(msg: &str) -> ! {
     std::process::exit(42)
 }
 
-fn push_wrapper(val: &str, vstack: &mut VStack, output: &mut Output) {
+fn push_wrapper(val: &str, name: Option<&str>, vstack: &mut VStack, output: &mut Output) {
     unimplemented!();
     output.text.push(format!("{} {}", OP_PUSH, val));
     // TODO: utrzymać niezmiennik
@@ -178,7 +183,7 @@ fn compile_fn(
     unimplemented!();
 }
 
-fn check_block(
+fn compile_block(
     stmts: &Vec<ast::Node<ast::Stmt>>,
     vstack: &mut VStack,
     labels: &mut HashSet<Label>,
@@ -194,15 +199,50 @@ fn check_block(
     vstack_exit_scope(vstack);
 }
 
-
 fn compile_stmt(
     stmt: &ast::Node<ast::Stmt>,
-    vstack: &VStack,
+    vstack: &mut VStack,
     labels: &mut HashSet<Label>,
     output: &mut Output,
 ) {
     match stmt.data() {
-        _ => unimplemented!(),
+        ast::Stmt::Empty => (),
+        ast::Stmt::Expr(expr_node) => compile_expr(expr_node, vstack, labels, output),
+        ast::Stmt::Block(block_node) => compile_block(block_node.data(), vstack, labels, output),
+        ast::Stmt::Incr(ident_node) | ast::Stmt::Decr(ident_node) => {
+            let var_expr = ast::Expr::Var(ident_node.clone());
+            let var_node = ast::Node::new(Span::new(0, 0), var_expr);
+            compile_expr(&var_node, vstack, labels, output);
+            pop_wrapper(REG_TEMP, vstack, output);
+            let op_code = match stmt.data() {
+                ast::Stmt::Incr(_) => OP_INC,
+                ast::Stmt::Decr(_) => OP_DEC,
+                _ => unreachable!(),
+            };
+            output.text.push(format!("{} {} {}", op_code, REG_TEMP, 1));
+            // TODO: aktualizacja wartości na stosie
+            // vstack_update_value
+        }
+        ast::Stmt::VRet => output.text.push(format!("{}", OP_RET)),
+        ast::Stmt::Ret(expr_node) => {
+            compile_expr(expr_node, vstack, labels, output);
+            pop_wrapper(REG_FN_RETVAL, vstack, output);
+        }
+        ast::Stmt::Decl(prim_nodes, item_nodes) => {
+            unimplemented!();
+        }
+        ast::Stmt::Asgn(ident_node, expr_node) => {
+            unimplemented!();
+        }
+        ast::Stmt::If(expr_node, stmt_node) => {
+            unimplemented!();
+        }
+        ast::Stmt::IfElse(expr_node, true_stmt_node, false_stmt_node) => {
+            unimplemented!();
+        }
+        ast::Stmt::While(expr_node, stmt_node) => {
+            unimplemented!();
+        }
     }
 }
 
@@ -213,27 +253,27 @@ fn compile_expr(
     output: &mut Output,
 ) {
     match expr.data() {
-        ast::Expr::Int(n) => push_wrapper(&n.to_string(), vstack, output),
-        ast::Expr::Bool(b) => push_wrapper(&(if *b { 1 } else { 0 }).to_string(), vstack, output),
+        ast::Expr::Int(n) => push_wrapper(&n.to_string(), None, vstack, output),
+        ast::Expr::Bool(b) => push_wrapper(&(if *b { 1 } else { 0 }).to_string(), None, vstack, output),
         ast::Expr::Str(s) => {
             let label = format!("str_{}", labels.len() + 1);
             labels.insert(label.clone());
             output.rodata.push(format!("{}: db `{}`, 0", label, s,));
             // TODO?: .len:  equ   $ - label
-            push_wrapper(REG_OP_TARGET, vstack, output);
+            push_wrapper(REG_OP_TARGET, None, vstack, output);
         }
         ast::Expr::Var(ident_node) => {
             // TODO: vstack... | OP_INC vs OP_DEC
             let offset = vstack_get_offset(vstack, ident_node.data());
             output.text.push(format!("{} {} {}", OP_MOV, REG_OP_AUX, REG_BASE));
             output.text.push(format!("{} {} {}", OP_INC, REG_OP_AUX, offset));
-            push_wrapper(&format!("[{}]", REG_OP_AUX), vstack, output);
+            push_wrapper(&format!("[{}]", REG_OP_AUX), None, vstack, output);
         }
         ast::Expr::Neg(expr_node) => {
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_OP_TARGET, vstack, output);
             output.text.push(format!("{} {}", OP_NEGATION, REG_OP_TARGET));
-            push_wrapper(REG_OP_TARGET, vstack, output);
+            push_wrapper(REG_OP_TARGET, None, vstack, output);
         }
         ast::Expr::Not(expr_node) => {
             compile_expr(expr_node, vstack, labels, output);
@@ -241,7 +281,7 @@ fn compile_expr(
             output.text.push(format!("{} {} {}", OP_XOR, REG_TEMP, REG_TEMP));
             output.text.push(format!("{} {} {}", OP_CMP, REG_OP_AUX, 0));
             output.text.push(format!("{} {}", OP_SETcc_NEQ, REG_TEMP_BYTE));
-            push_wrapper(REG_TEMP_BYTE, vstack, output);
+            push_wrapper(REG_TEMP_BYTE, None, vstack, output);
         }
         ast::Expr::App(fname_node, arg_expr_nodes) => {
             let fname = fname_node.data();
@@ -258,7 +298,7 @@ fn compile_expr(
             // }
             // TODO: czy dobry prolog (lub jego brak?)
             output.text.push(format!("{} {}", OP_CALL, fname));
-            push_wrapper(REG_FN_RETVAL, vstack, output);
+            push_wrapper(REG_FN_RETVAL, None, vstack, output);
         }
         ast::Expr::Add(expr1, expr2)
         | ast::Expr::Sub(expr1, expr2)
@@ -276,7 +316,7 @@ fn compile_expr(
             };
             output.text.push(format!("{} {} {}", OP_MOV, REG_OP_TARGET, REG_OP_AUX));
 
-            push_wrapper(REG_OP_TARGET, vstack, output);
+            push_wrapper(REG_OP_TARGET, None, vstack, output);
         }
         ast::Expr::Div(expr1, expr2)
         | ast::Expr::Mod(expr1, expr2) => {
@@ -293,7 +333,7 @@ fn compile_expr(
                 ast::Expr::Mod(_, _) => REG_REMAINDER,
                 _ => unreachable!(),
             };
-            push_wrapper(result_reg, vstack, output);
+            push_wrapper(result_reg, None, vstack, output);
         }
         ast::Expr::And(expr1, expr2) |
         ast::Expr::Or(expr1, expr2) => {
@@ -309,7 +349,7 @@ fn compile_expr(
                 _ => unreachable!(),
             };
             output.text.push(format!("{} {} {}", opcode, REG_OP_TARGET, REG_OP_AUX));
-            push_wrapper(REG_OP_TARGET, vstack, output);
+            push_wrapper(REG_OP_TARGET, None, vstack, output);
         }
         ast::Expr::EQ(expr1, expr2) |
         ast::Expr::NEQ(expr1, expr2) |
