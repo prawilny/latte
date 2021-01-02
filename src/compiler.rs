@@ -13,8 +13,8 @@ static REG_TMP: &str = "r15";
 
 static REG_FN: &str = "rax";
 
-static REG_BASE: &str = "rsp";
-static REG_STACK: &str = "rbp";
+static REG_BASE: &str = "rbp";
+static REG_STACK: &str = "rsp";
 
 static REG_QUOTIENT: &str = "rax";
 static REG_REMAINDER: &str = "rdx";
@@ -68,7 +68,7 @@ static BIT_ZERO_FLAG: usize = 6;
 
 // wychodzenie ze scope
 // (identyfikatory na stosie,
-//    długość stosu do tego miejsca)
+//    wysokość stosu do tego miejsca)
 type VStack = (Vec<ast::Ident>, Vec<usize>);
 type Label = String;
 type Literal = String;
@@ -91,6 +91,15 @@ fn error(msg: &str) -> ! {
     std::process::exit(42)
 }
 
+fn push_wrapper(reg: &str, vstack: &mut VStack, output: &mut Output) {
+    output.text.push(format!("{} {}", OP_PUSH, reg));
+}
+
+fn pop_wrapper(reg: &str, vstack: &mut VStack, output: &mut Output) {
+
+}
+
+// TODO: czy jednak nie adresować względem rbp?
 fn vstack_get_offset(vstack: &VStack, ident: &ast::Ident) -> usize {
     match vstack.0.iter().rev().position(|i| i == ident) {
         None => error("use of undeclared variable"),
@@ -115,7 +124,7 @@ fn vstack_exit_scope(vstack: &mut VStack) {
 
     vstack.0.truncate(h_after);
     // TODO: czy to jest ok?
-    println!("inc rsp {}", h_before - h_after);
+    println!("{} {} {}", OP_INC, REG_STACK, h_before - h_after);
 }
 
 fn directives(fdefs: &Vec<ast::Node<ast::FunDef>>, output: &mut Output) {
@@ -162,12 +171,39 @@ fn compile_fn(
     labels: &mut HashSet<Label>,
     output: &mut Output,
 ) {
-    // println!("
-    //     main:
-    //       ret
-    // ");
-
+    // TODO: prolog ze zdjęciem argumentów ze stosu lub (raczej) ich przenazwieniem
+    // TODO: prolog (RSP i RBP)
+    // TODO: epilog (RSP i RBP)
+    // TODO: label z nazwą
     unimplemented!();
+}
+
+fn check_block(
+    stmts: &Vec<ast::Node<ast::Stmt>>,
+    vstack: &mut VStack,
+    labels: &mut HashSet<Label>,
+    output: &mut Output,
+) {
+    vstack_enter_scope(vstack);
+
+    // TODO: czy to wystarczy?
+    for stmt in stmts {
+        compile_stmt(stmt, vstack, labels, output);
+    }
+
+    vstack_exit_scope(vstack);
+}
+
+
+fn compile_stmt(
+    stmt: &ast::Node<ast::Stmt>,
+    vstack: &VStack,
+    labels: &mut HashSet<Label>,
+    output: &mut Output,
+) {
+    match stmt.data() {
+        _ => unimplemented!(),
+    }
 }
 
 fn compile_expr(
