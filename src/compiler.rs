@@ -2,16 +2,13 @@ use std::collections::{HashMap, HashSet};
 
 use crate::latte_y as ast;
 
-// r12 - r15: "Preserved across function calls"
-static REG_OP_TARGET: &str = "r12";
-static REG_OP_TARGET_BYTE: &str = "r12b";
-static REG_OP_AUX: &str = "r13";
-// TODO: przerobić na maszynę stosową
+static REG_OP_TARGET: &str = "r11";
+static REG_OP_AUX: &str = "r10";
+static REG_TEMP: &str = "rax";
+static REG_TEMP_BYTE: &str = "al";
 // tj: wrapperu na push i pop wpisujące/kasujące z VStack ".stack"
-static REG_STORAGE: &str = "r14";
-static REG_TMP: &str = "r15";
 
-static REG_FN: &str = "rax";
+static REG_FN_RETVAL: &str = "rax";
 
 static REG_BASE: &str = "rbp";
 static REG_STACK: &str = "rsp";
@@ -51,9 +48,7 @@ static OP_SETcc_GTH: &str = "setg";
 static OP_SETcc_GEQ: &str = "setge";
 static OP_SETcc_NONZERO: &str = "setnz";
 
-
-
-// bit >= 0
+// bit# \in [0, 1, ... 63]
 static BIT_ZERO_FLAG: usize = 6;
 // static BIT_SIGN_FLAG: u8 = 7
 
@@ -91,15 +86,20 @@ fn error(msg: &str) -> ! {
     std::process::exit(42)
 }
 
-fn push_wrapper(reg: &str, vstack: &mut VStack, output: &mut Output) {
-    output.text.push(format!("{} {}", OP_PUSH, reg));
+fn push_wrapper(val: &str, vstack: &mut VStack, output: &mut Output) {
+    unimplemented!();
+    output.text.push(format!("{} {}", OP_PUSH, val));
+    // TODO: utrzymać niezmiennik
 }
 
 fn pop_wrapper(reg: &str, vstack: &mut VStack, output: &mut Output) {
-
+    unimplemented!();
+    output.text.push(format!("{} {}", OP_PUSH, reg));
 }
 
-// TODO: czy jednak nie adresować względem rbp?
+// TODO: fix vstack...
+
+// TODO: czy jednak adresować względem rbp (a nie rsp)?
 fn vstack_get_offset(vstack: &VStack, ident: &ast::Ident) -> usize {
     match vstack.0.iter().rev().position(|i| i == ident) {
         None => error("use of undeclared variable"),
@@ -208,41 +208,40 @@ fn compile_stmt(
 
 fn compile_expr(
     expr: &ast::Node<ast::Expr>,
-    vstack: &VStack,
+    vstack: &mut VStack,
     labels: &mut HashSet<Label>,
     output: &mut Output,
 ) {
     match expr.data() {
-        ast::Expr::Int(n) => output.text.push(format!("{} {} {}", OP_MOV, REG_OP_TARGET, n.to_string())),
-        ast::Expr::Bool(b) => output.text.push(format!(
-            "{} {} {}",
-            OP_MOV,
-            REG_OP_TARGET,
-            if *b { 1 } else { 0 }
-        )),
+        ast::Expr::Int(n) => push_wrapper(&n.to_string(), vstack, output),
+        ast::Expr::Bool(b) => push_wrapper(&(if *b { 1 } else { 0 }).to_string(), vstack, output),
         ast::Expr::Str(s) => {
             let label = format!("str_{}", labels.len() + 1);
             labels.insert(label.clone());
             output.rodata.push(format!("{}: db `{}`, 0", label, s,));
             // TODO?: .len:  equ   $ - label
-            output.text.push(format!("{} {} {}", OP_MOV, REG_OP_TARGET, label));
+            push_wrapper(REG_OP_TARGET, vstack, output);
         }
         ast::Expr::Var(ident_node) => {
+            // TODO: vstack... | OP_INC vs OP_DEC
             let offset = vstack_get_offset(vstack, ident_node.data());
-            output.text.push(format!("{} {} {}", OP_MOV, REG_OP_AUX, REG_STACK));
-            output.text.push(format!("{} {} {}", OP_DEC, REG_OP_AUX, offset));
-            output.text.push(format!("{} {} [{}]", OP_MOV, REG_OP_TARGET, REG_OP_AUX));
+            output.text.push(format!("{} {} {}", OP_MOV, REG_OP_AUX, REG_BASE));
+            output.text.push(format!("{} {} {}", OP_INC, REG_OP_AUX, offset));
+            push_wrapper(&format!("[{}]", REG_OP_AUX), vstack, output);
         }
         ast::Expr::Neg(expr_node) => {
             compile_expr(expr_node, vstack, labels, output);
+            pop_wrapper(REG_OP_TARGET, vstack, output);
             output.text.push(format!("{} {}", OP_NEGATION, REG_OP_TARGET));
+            push_wrapper(REG_OP_TARGET, vstack, output);
         }
         ast::Expr::Not(expr_node) => {
             compile_expr(expr_node, vstack, labels, output);
-            output.text.push(format!("{} {} {}", OP_MOV, REG_OP_AUX, REG_OP_TARGET));
-            output.text.push(format!("{} {} {}", OP_XOR, REG_OP_TARGET, REG_OP_TARGET));
+            pop_wrapper(REG_OP_AUX, vstack, output);
+            output.text.push(format!("{} {} {}", OP_XOR, REG_TEMP, REG_TEMP));
             output.text.push(format!("{} {} {}", OP_CMP, REG_OP_AUX, 0));
-            output.text.push(format!("{} {}", OP_SETcc_NEQ, REG_OP_TARGET_BYTE));
+            output.text.push(format!("{} {}", OP_SETcc_NEQ, REG_TEMP_BYTE));
+            push_wrapper(REG_TEMP_BYTE, vstack, output);
         }
         ast::Expr::App(fname_node, arg_expr_nodes) => {
             let fname = fname_node.data();
@@ -259,13 +258,15 @@ fn compile_expr(
             // }
             // TODO: czy dobry prolog (lub jego brak?)
             output.text.push(format!("{} {}", OP_CALL, fname));
+            push_wrapper(REG_FN_RETVAL, vstack, output);
         }
         ast::Expr::Add(expr1, expr2)
         | ast::Expr::Sub(expr1, expr2)
         | ast::Expr::Mul(expr1, expr2) => {
-            compile_expr(&expr2, vstack, labels, output);
-            output.text.push(format!("{} {} {}", OP_MOV, REG_STORAGE, REG_OP_TARGET));
             compile_expr(&expr1, vstack, labels, output);
+            compile_expr(&expr2, vstack, labels, output);
+            pop_wrapper(REG_OP_AUX, vstack, output);
+            pop_wrapper(REG_OP_TARGET, vstack, output);
 
             let opcode = match expr.data() {
                 ast::Expr::Add(_, _) => OP_INC,
@@ -273,38 +274,42 @@ fn compile_expr(
                 ast::Expr::Mul(_, _) => OP_IMUL,
                 _ => unreachable!(),
             };
-            output.text.push(format!("{} {} {}", opcode, REG_OP_TARGET, REG_STORAGE));
+            output.text.push(format!("{} {} {}", OP_MOV, REG_OP_TARGET, REG_OP_AUX));
+
+            push_wrapper(REG_OP_TARGET, vstack, output);
         }
         ast::Expr::Div(expr1, expr2)
         | ast::Expr::Mod(expr1, expr2) => {
-            compile_expr(&expr2, vstack, labels, output);
-            output.text.push(format!("{} {} {}", OP_MOV, REG_STORAGE, REG_OP_TARGET));
             compile_expr(&expr1, vstack, labels, output);
+            compile_expr(&expr2, vstack, labels, output);
+            pop_wrapper(REG_OP_AUX, vstack, output);
+            pop_wrapper(REG_DIVIDEND_LOW, vstack, output);
 
-            output.text.push(format!("{} {} {}", OP_MOV, REG_DIVIDEND_HIGH, 0));
-            output.text.push(format!("{} {} {}", OP_MOV, REG_DIVIDEND_LOW, REG_OP_TARGET));
-            output.text.push(format!("{} {}", OP_IDIV, REG_STORAGE));
+            output.text.push(format!("{} {} {}", OP_XOR, REG_DIVIDEND_HIGH, REG_DIVIDEND_HIGH));
+            output.text.push(format!("{} {}", OP_IDIV, REG_OP_AUX));
 
             let result_reg = match expr.data() {
                 ast::Expr::Div(_, _) => REG_QUOTIENT,
                 ast::Expr::Mod(_, _) => REG_REMAINDER,
                 _ => unreachable!(),
             };
-            output.text.push(format!("{} {} {}", OP_MOV, REG_OP_TARGET, result_reg));
+            push_wrapper(result_reg, vstack, output);
         }
         ast::Expr::And(expr1, expr2) |
         ast::Expr::Or(expr1, expr2) => {
             // TODO: leniwość
-            compile_expr(&expr2, vstack, labels, output);
-            output.text.push(format!("{} {} {}", OP_MOV, REG_STORAGE, REG_OP_TARGET));
             compile_expr(&expr1, vstack, labels, output);
+            compile_expr(&expr2, vstack, labels, output);
+            pop_wrapper(REG_OP_AUX, vstack, output);
+            pop_wrapper(REG_OP_TARGET, vstack, output);
 
             let opcode = match expr.data() {
                 ast::Expr::And(_, _) => OP_AND,
                 ast::Expr::Or(_, _) => OP_OR,
                 _ => unreachable!(),
             };
-            output.text.push(format!("{} {} {}", opcode, REG_OP_TARGET, REG_STORAGE));
+            output.text.push(format!("{} {} {}", opcode, REG_OP_TARGET, REG_OP_AUX));
+            push_wrapper(REG_OP_TARGET, vstack, output);
         }
         ast::Expr::EQ(expr1, expr2) |
         ast::Expr::NEQ(expr1, expr2) |
@@ -312,14 +317,13 @@ fn compile_expr(
         ast::Expr::LEQ(expr1, expr2) |
         ast::Expr::GTH(expr1, expr2) |
         ast::Expr::GEQ(expr1, expr2) => {
-            compile_expr(&expr2, vstack, labels, output);
-            output.text.push(format!("{} {} {}", OP_MOV, REG_STORAGE, REG_OP_TARGET));
             compile_expr(&expr1, vstack, labels, output);
-            output.text.push(format!("{} {} {}", OP_MOV, REG_OP_AUX, REG_OP_TARGET));
+            compile_expr(&expr2, vstack, labels, output);
+            pop_wrapper(REG_OP_AUX, vstack, output);
+            pop_wrapper(REG_OP_TARGET, vstack, output);
+            output.text.push(format!("{} {} {}", OP_XOR, REG_TEMP, REG_TEMP));
 
-            output.text.push(format!("{} {} {}", OP_XOR, REG_OP_TARGET, REG_OP_TARGET));
-
-            output.text.push(format!("{} {} {}", OP_CMP, REG_OP_AUX, REG_STORAGE));
+            output.text.push(format!("{} {} {}", OP_CMP, REG_OP_TARGET, REG_OP_AUX));
             let opcode = match expr.data() {
                 ast::Expr::EQ(_, _)  => OP_SETcc_EQ,
                 ast::Expr::NEQ(_, _) => OP_SETcc_NEQ,
@@ -329,7 +333,7 @@ fn compile_expr(
                 ast::Expr::GEQ(_, _) => OP_SETcc_GEQ,
                 _ => unreachable!(),
             };
-            output.text.push(format!("{} {}", opcode, REG_OP_TARGET_BYTE));
+            output.text.push(format!("{} {}", opcode, REG_TEMP_BYTE));
         }
         _ => unimplemented!(),
     }
