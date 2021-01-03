@@ -118,7 +118,7 @@ fn pop_wrapper(reg: &str, vstack: &mut VStack, output: &mut Output) {
 fn vstack_get_offset(vstack: &VStack, ident: &ast::Ident) -> usize {
     match vstack.0.iter().rev().position(|i| i == ident) {
         None => error("use of undeclared variable"),
-        Some(n) => n,
+        Some(n) => n * std::mem::size_of::<i64>(),
     }
 }
 
@@ -143,7 +143,10 @@ fn vstack_exit_scope(vstack: &mut VStack) {
 }
 
 fn vstack_bind_stack_args(vstack: &mut VStack, arg_names: &Vec<ast::Ident>) {
-    unimplemented!();
+    // TODO: kolejność [czy tam aby nie powinno się pojawić rev()?]
+    for (arg_name, stack_name) in arg_names[6..arg_names.len()].iter().zip(vstack.0.iter_mut()) {
+        *stack_name = arg_name.clone();
+    }
 }
 
 fn directives(fdefs: &Vec<ast::Node<ast::FunDef>>, output: &mut Output) {
