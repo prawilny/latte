@@ -142,9 +142,9 @@ fn vstack_exit_scope(vstack: &mut VStack) {
     println!("{} {} {}", OP_INC, REG_STACK, h_before - h_after);
 }
 
-fn vstack_bind_stack_args(vstack: &mut VStack, arg_names: &Vec<ast::Ident>) {
+fn vstack_rename_last(vstack: &mut VStack, arg_names: &Vec<ast::Ident>) {
     // TODO: kolejność [czy tam aby nie powinno się pojawić rev()?]
-    for (arg_name, stack_name) in arg_names[6..arg_names.len()].iter().zip(vstack.0.iter_mut()) {
+    for (arg_name, stack_name) in arg_names.iter().zip(vstack.0.iter_mut().rev()) {
         *stack_name = arg_name.clone();
     }
 }
@@ -201,7 +201,8 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
         .text
         .push(format!("{} {} {}", OP_MOV, REG_BASE, REG_STACK));
 
-    vstack_bind_stack_args(&mut vstack, &arg_names);
+    // kolejność?
+    vstack_rename_last(&mut vstack, &arg_names[6..arg_names.len()].to_vec());
     for i in 0..std::cmp::min(6, arg_nodes.len()) {
         push_wrapper(ARG_REGS[i], Some(&arg_names[i]), &mut vstack, output);
     }
@@ -271,7 +272,7 @@ fn compile_stmt(
                     }
                     ast::Item::Init(ident_node, expr_node) => {
                         compile_expr(expr_node, vstack, labels, output);
-                        vstack_insert(vstack, ident_node.data().clone());
+                        vstack_rename_last(vstack, &vec![ident_node.data().clone()]);
                     }
                 };
             }
