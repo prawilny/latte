@@ -64,7 +64,6 @@ static JMP_EQ: &str = "je";
 // TODO: dodatkowe funkcje w runtime (długość stringa) lub jakoś inaczej długość stringa
 // TODO: czy mam błąd nie rezerwując miejsca na zmienne lokalne z góry?
 // TODO: upewnienie się, że flagi są ustawiane przez dobre instrukcje
-// TODO: return 0 na końcu
 // TODO: zapisywanie nie-volatile rejestrów (te od dzielenia?)
 
 // TODO: zawartość stosu (przy call i ret głównie)
@@ -275,7 +274,10 @@ fn compile_stmt(
             }
         }
         ast::Stmt::Asgn(ident_node, expr_node) => {
-            unimplemented!();
+            let offset = vstack_get_offset(vstack, ident_node.data());
+
+            compile_expr(expr_node, vstack, labels, output);
+            pop_wrapper(&format!("[{} - {}]", REG_BASE, offset), vstack, output);
         }
         // TODO: uwaga na scope (w ifie bez {})
         ast::Stmt::If(expr_node, stmt_node) => {
