@@ -43,13 +43,13 @@ static OP_CALL: &str = "call";
 static OP_CMP: &str = "cmp";
 static OP_RET: &str = "ret";
 
-static OP_SETcc_EQ: &str = "sete";
-static OP_SETcc_NEQ: &str = "setne";
-static OP_SETcc_LTH: &str = "setl";
-static OP_SETcc_LEQ: &str = "setle";
-static OP_SETcc_GTH: &str = "setg";
-static OP_SETcc_GEQ: &str = "setge";
-static OP_SETcc_NONZERO: &str = "setnz";
+static OP_SETCC_EQ: &str = "sete";
+static OP_SETCC_NEQ: &str = "setne";
+static OP_SETCC_LTH: &str = "setl";
+static OP_SETCC_LEQ: &str = "setle";
+static OP_SETCC_GTH: &str = "setg";
+static OP_SETCC_GEQ: &str = "setge";
+// static OP_SETCC_NONZERO: &str = "setnz";
 
 static JMP_EQ: &str = "je";
 
@@ -162,8 +162,6 @@ pub fn compile(fdefs: &Vec<ast::Node<ast::FunDef>>) {
 
     directives(&fdefs, &mut output);
 
-    // TODO: skasować type hint
-
     for fdef in fdefs {
         compile_fn(fdef, &mut labels, &mut output);
     }
@@ -175,30 +173,31 @@ pub fn compile(fdefs: &Vec<ast::Node<ast::FunDef>>) {
     println!();
     println!(".rodata");
     for rodata in output.rodata {
-        println!("    {}", rodata);
+        println!("{}", rodata);
     }
 
     println!();
+    println!(".text");
     for instruction in output.text {
-        println!("    {}", instruction);
+        println!("{}", instruction);
     }
 }
 
-fn compile_fn(
-    fdef: &ast::Node<ast::FunDef>,
-    labels: &mut HashSet<Label>,
-    output: &mut Output,
-) {
+fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output: &mut Output) {
     let mut vstack: VStack = (vec![], vec![0]);
 
     let (_, ident_node, arg_nodes, block_node) = fdef.data();
-    let args_count = arg_nodes.len();
-    let arg_names: Vec<ast::Ident> = arg_nodes.iter().map(|arg_node| arg_node.data().1.data().clone()).collect();
+    let arg_names: Vec<ast::Ident> = arg_nodes
+        .iter()
+        .map(|arg_node| arg_node.data().1.data().clone())
+        .collect();
     output.text.push(format!("{}:", ident_node.data()));
 
     // prolog
     output.text.push(format!("{} {}", OP_PUSH, REG_BASE));
-    output.text.push(format!("{} {} {}", OP_MOV, REG_BASE, REG_STACK));
+    output
+        .text
+        .push(format!("{} {} {}", OP_MOV, REG_BASE, REG_STACK));
 
     vstack_bind_stack_args(&mut vstack, &arg_names);
     for i in 0..std::cmp::min(6, arg_nodes.len()) {
@@ -208,7 +207,9 @@ fn compile_fn(
     compile_block(block_node.data(), &mut vstack, labels, output);
 
     // epilog
-    output.text.push(format!("{} {} [{}]", OP_MOV, REG_BASE, REG_BASE));
+    output
+        .text
+        .push(format!("{} {} [{}]", OP_MOV, REG_BASE, REG_BASE));
     output.text.push(format!("{}", OP_RET));
 }
 
@@ -260,20 +261,32 @@ fn compile_stmt(
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_FN_RETVAL, vstack, output);
         }
-        ast::Stmt::Decl(prim_nodes, item_nodes) => {
-            // TODO: uwaga na scope (w ifie bez {})
-            unimplemented!();
+        ast::Stmt::Decl(_, item_nodes) => {
+            for item_node in item_nodes {
+                match item_node.data() {
+                    ast::Item::NoInit(ident_node) => {
+                        push_wrapper("0", Some(&ident_node.data().clone()), vstack, output);
+                    }
+                    ast::Item::Init(ident_node, expr_node) => {
+                        compile_expr(expr_node, vstack, labels, output);
+                        vstack_insert(vstack, ident_node.data().clone());
+                    }
+                };
+            }
         }
         ast::Stmt::Asgn(ident_node, expr_node) => {
             unimplemented!();
         }
+        // TODO: uwaga na scope (w ifie bez {})
         ast::Stmt::If(expr_node, stmt_node) => {
             let if_label_after = format!("if_{}_after", labels.len()); // "{}_after", if_label
             labels.insert(if_label_after.clone());
 
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_OP_AUX, vstack, output);
-            output.text.push(format!("{} {} {}", OP_XOR, REG_TEMP, REG_TEMP));
+            output
+                .text
+                .push(format!("{} {} {}", OP_XOR, REG_TEMP, REG_TEMP));
 
             output.text.push(format!("{} {} {}", OP_CMP, REG_TEMP, 0));
             output.text.push(format!("{} {}", JMP_EQ, if_label_after));
@@ -297,7 +310,9 @@ fn compile_expr(
 ) {
     match expr.data() {
         ast::Expr::Int(n) => push_wrapper(&n.to_string(), None, vstack, output),
-        ast::Expr::Bool(b) => push_wrapper(&(if *b { 1 } else { 0 }).to_string(), None, vstack, output),
+        ast::Expr::Bool(b) => {
+            push_wrapper(&(if *b { 1 } else { 0 }).to_string(), None, vstack, output)
+        }
         ast::Expr::Str(s) => {
             let label = format!("str_{}", labels.len() + 1);
             labels.insert(label.clone());
@@ -308,7 +323,10 @@ fn compile_expr(
         ast::Expr::Var(ident_node) => {
             // TODO: vstack... | OP_INC vs OP_DEC
             let offset = vstack_get_offset(vstack, ident_node.data());
-            output.text.push(format!("{} {} [{} - {}]", OP_MOV, REG_OP_AUX, REG_BASE, offset));
+            output.text.push(format!(
+                "{} {} [{} - {}]",
+                OP_MOV, REG_OP_AUX, REG_BASE, offset
+            ));
             push_wrapper(&format!("[{}]", REG_OP_AUX), None, vstack, output);
         }
         ast::Expr::Neg(expr_node) => {
@@ -320,9 +338,13 @@ fn compile_expr(
         ast::Expr::Not(expr_node) => {
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_OP_AUX, vstack, output);
-            output.text.push(format!("{} {} {}", OP_XOR, REG_TEMP, REG_TEMP));
+            output
+                .text
+                .push(format!("{} {} {}", OP_XOR, REG_TEMP, REG_TEMP));
             output.text.push(format!("{} {} {}", OP_CMP, REG_OP_AUX, 0));
-            output.text.push(format!("{} {}", OP_SETcc_NEQ, REG_TEMP_BYTE));
+            output
+                .text
+                .push(format!("{} {}", OP_SETCC_NEQ, REG_TEMP_BYTE));
             push_wrapper(REG_TEMP_BYTE, None, vstack, output);
         }
         ast::Expr::App(fname_node, arg_expr_nodes) => {
@@ -353,18 +375,22 @@ fn compile_expr(
                 ast::Expr::Mul(_, _) => OP_IMUL,
                 _ => unreachable!(),
             };
-            output.text.push(format!("{} {} {}", OP_MOV, REG_OP_MAIN, REG_OP_AUX));
+            output
+                .text
+                .push(format!("{} {} {}", opcode, REG_OP_MAIN, REG_OP_AUX));
 
             push_wrapper(REG_OP_MAIN, None, vstack, output);
         }
-        ast::Expr::Div(expr1, expr2)
-        | ast::Expr::Mod(expr1, expr2) => {
+        ast::Expr::Div(expr1, expr2) | ast::Expr::Mod(expr1, expr2) => {
             compile_expr(&expr1, vstack, labels, output);
             compile_expr(&expr2, vstack, labels, output);
             pop_wrapper(REG_OP_AUX, vstack, output);
             pop_wrapper(REG_DIVIDEND_LOW, vstack, output);
 
-            output.text.push(format!("{} {} {}", OP_XOR, REG_DIVIDEND_HIGH, REG_DIVIDEND_HIGH));
+            output.text.push(format!(
+                "{} {} {}",
+                OP_XOR, REG_DIVIDEND_HIGH, REG_DIVIDEND_HIGH
+            ));
             output.text.push(format!("{} {}", OP_IDIV, REG_OP_AUX));
 
             let result_reg = match expr.data() {
@@ -374,8 +400,7 @@ fn compile_expr(
             };
             push_wrapper(result_reg, None, vstack, output);
         }
-        ast::Expr::And(expr1, expr2) |
-        ast::Expr::Or(expr1, expr2) => {
+        ast::Expr::And(expr1, expr2) | ast::Expr::Or(expr1, expr2) => {
             // TODO: leniwość
             compile_expr(&expr1, vstack, labels, output);
             compile_expr(&expr2, vstack, labels, output);
@@ -387,33 +412,38 @@ fn compile_expr(
                 ast::Expr::Or(_, _) => OP_OR,
                 _ => unreachable!(),
             };
-            output.text.push(format!("{} {} {}", opcode, REG_OP_MAIN, REG_OP_AUX));
+            output
+                .text
+                .push(format!("{} {} {}", opcode, REG_OP_MAIN, REG_OP_AUX));
             push_wrapper(REG_OP_MAIN, None, vstack, output);
         }
-        ast::Expr::EQ(expr1, expr2) |
-        ast::Expr::NEQ(expr1, expr2) |
-        ast::Expr::LTH(expr1, expr2) |
-        ast::Expr::LEQ(expr1, expr2) |
-        ast::Expr::GTH(expr1, expr2) |
-        ast::Expr::GEQ(expr1, expr2) => {
+        ast::Expr::EQ(expr1, expr2)
+        | ast::Expr::NEQ(expr1, expr2)
+        | ast::Expr::LTH(expr1, expr2)
+        | ast::Expr::LEQ(expr1, expr2)
+        | ast::Expr::GTH(expr1, expr2)
+        | ast::Expr::GEQ(expr1, expr2) => {
             compile_expr(&expr1, vstack, labels, output);
             compile_expr(&expr2, vstack, labels, output);
             pop_wrapper(REG_OP_AUX, vstack, output);
             pop_wrapper(REG_OP_MAIN, vstack, output);
-            output.text.push(format!("{} {} {}", OP_XOR, REG_TEMP, REG_TEMP));
+            output
+                .text
+                .push(format!("{} {} {}", OP_XOR, REG_TEMP, REG_TEMP));
 
-            output.text.push(format!("{} {} {}", OP_CMP, REG_OP_MAIN, REG_OP_AUX));
+            output
+                .text
+                .push(format!("{} {} {}", OP_CMP, REG_OP_MAIN, REG_OP_AUX));
             let opcode = match expr.data() {
-                ast::Expr::EQ(_, _)  => OP_SETcc_EQ,
-                ast::Expr::NEQ(_, _) => OP_SETcc_NEQ,
-                ast::Expr::LTH(_, _) => OP_SETcc_LTH,
-                ast::Expr::LEQ(_, _) => OP_SETcc_LEQ,
-                ast::Expr::GTH(_, _) => OP_SETcc_GTH,
-                ast::Expr::GEQ(_, _) => OP_SETcc_GEQ,
+                ast::Expr::EQ(_, _) => OP_SETCC_EQ,
+                ast::Expr::NEQ(_, _) => OP_SETCC_NEQ,
+                ast::Expr::LTH(_, _) => OP_SETCC_LTH,
+                ast::Expr::LEQ(_, _) => OP_SETCC_LEQ,
+                ast::Expr::GTH(_, _) => OP_SETCC_GTH,
+                ast::Expr::GEQ(_, _) => OP_SETCC_GEQ,
                 _ => unreachable!(),
             };
             output.text.push(format!("{} {}", opcode, REG_TEMP_BYTE));
         }
-        _ => unimplemented!(),
     }
 }
