@@ -4,7 +4,7 @@ use lrpar::Span;
 
 use crate::latte_y as ast;
 
-static REG_OP_TARGET: &str = "r11";
+static REG_OP_MAIN: &str = "r11";
 static REG_OP_AUX: &str = "r10";
 static REG_TEMP: &str = "rax";
 static REG_TEMP_BYTE: &str = "al";
@@ -51,28 +51,39 @@ static OP_SETcc_GTH: &str = "setg";
 static OP_SETcc_GEQ: &str = "setge";
 static OP_SETcc_NONZERO: &str = "setnz";
 
+static JMP_EQ: &str = "je";
+
 // bit# \in [0, 1, ... 63]
-static BIT_ZERO_FLAG: usize = 6;
+// static BIT_ZERO_FLAG: usize = 6;
 // static BIT_SIGN_FLAG: u8 = 7
 
-// TODO: zapisanie stringów w .data
-// TODO: uwaga na scope w if/while
+// TODO: uwaga na scope w if/while [rozwiązanie: przerobić deklaracje na wyrażenie]
 // TODO: czy wywalanie kompilatora w przypadku błędu typecheckera jest dobre?
 //       (niby "ERROR" w pierwszej lini stderr itd)
 // TODO: null na końcu stringów?
 // TODO: dodatkowe funkcje w runtime (długość stringa) lub jakoś inaczej długość stringa
 // TODO: czy mam błąd nie rezerwując miejsca na zmienne lokalne z góry?
 // TODO: upewnienie się, że flagi są ustawiane przez dobre instrukcje
+// TODO: return 0 na końcu
+// TODO: zapisywanie nie-volatile rejestrów (te od dzielenia?)
+
+// TODO: zawartość stosu (przy call i ret głównie)
+
+// TODO: rzeczy stosowe (tj. kontatenacj: string + string)
 
 // TODO: sprawdzenie minimalności mutowalności argumentów
+
+// TODO: upewnienie się, że dobrze wskazuję górę stosu
+
+// TODO: uwaga na stringi, bo sizeof(char) != sizeof(intXX)
 
 // wychodzenie ze scope
 // (identyfikatory na stosie,
 //    wysokość stosu do tego miejsca)
 type VStack = (Vec<ast::Ident>, Vec<usize>);
 type Label = String;
-type Literal = String;
-type Labels = HashSet<Label>;
+// type Literal = String;
+// type Labels = HashSet<Label>;
 
 // TODO: deduplikacja stringów w .rodata
 // type StrEnv = HashMap<Literal, Label>;
@@ -132,6 +143,10 @@ fn vstack_exit_scope(vstack: &mut VStack) {
     println!("{} {} {}", OP_INC, REG_STACK, h_before - h_after);
 }
 
+fn vstack_bind_stack_args(vstack: &mut VStack, arg_names: &Vec<ast::Ident>) {
+    unimplemented!();
+}
+
 fn directives(fdefs: &Vec<ast::Node<ast::FunDef>>, output: &mut Output) {
     output.directives.push(".intel_syntax".to_string());
 
@@ -148,10 +163,9 @@ pub fn compile(fdefs: &Vec<ast::Node<ast::FunDef>>) {
     directives(&fdefs, &mut output);
 
     // TODO: skasować type hint
-    let mut vstack: VStack = (Vec::new(), vec![0]);
 
     for fdef in fdefs {
-        compile_fn(fdef, &mut vstack, &mut labels, &mut output);
+        compile_fn(fdef, &mut labels, &mut output);
     }
 
     for directive in output.directives {
@@ -172,15 +186,30 @@ pub fn compile(fdefs: &Vec<ast::Node<ast::FunDef>>) {
 
 fn compile_fn(
     fdef: &ast::Node<ast::FunDef>,
-    vstack: &VStack,
     labels: &mut HashSet<Label>,
     output: &mut Output,
 ) {
-    // TODO: prolog ze zdjęciem argumentów ze stosu lub (raczej) ich przenazwieniem
-    // TODO: prolog (RSP i RBP)
-    // TODO: epilog (RSP i RBP)
-    // TODO: label z nazwą
-    unimplemented!();
+    let mut vstack: VStack = (vec![], vec![0]);
+
+    let (_, ident_node, arg_nodes, block_node) = fdef.data();
+    let args_count = arg_nodes.len();
+    let arg_names: Vec<ast::Ident> = arg_nodes.iter().map(|arg_node| arg_node.data().1.data().clone()).collect();
+    output.text.push(format!("{}:", ident_node.data()));
+
+    // prolog
+    output.text.push(format!("{} {}", OP_PUSH, REG_BASE));
+    output.text.push(format!("{} {} {}", OP_MOV, REG_BASE, REG_STACK));
+
+    vstack_bind_stack_args(&mut vstack, &arg_names);
+    for i in 0..std::cmp::min(6, arg_nodes.len()) {
+        push_wrapper(ARG_REGS[i], Some(&arg_names[i]), &mut vstack, output);
+    }
+
+    compile_block(block_node.data(), &mut vstack, labels, output);
+
+    // epilog
+    output.text.push(format!("{} {} [{}]", OP_MOV, REG_BASE, REG_BASE));
+    output.text.push(format!("{}", OP_RET));
 }
 
 fn compile_block(
@@ -220,22 +249,36 @@ fn compile_stmt(
                 _ => unreachable!(),
             };
             output.text.push(format!("{} {} {}", op_code, REG_TEMP, 1));
-            // TODO: aktualizacja wartości na stosie
-            // vstack_update_value
+            // TODO: aktualizacja wartości na stosie:
+            // wczytać wartość do rejestru
+            // zmienić
+            // zapisać do rejestru
+            // NIE wpychać na stos
         }
-        ast::Stmt::VRet => output.text.push(format!("{}", OP_RET)),
+        ast::Stmt::VRet => (),
         ast::Stmt::Ret(expr_node) => {
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_FN_RETVAL, vstack, output);
         }
         ast::Stmt::Decl(prim_nodes, item_nodes) => {
+            // TODO: uwaga na scope (w ifie bez {})
             unimplemented!();
         }
         ast::Stmt::Asgn(ident_node, expr_node) => {
             unimplemented!();
         }
         ast::Stmt::If(expr_node, stmt_node) => {
-            unimplemented!();
+            let if_label_after = format!("if_{}_after", labels.len()); // "{}_after", if_label
+            labels.insert(if_label_after.clone());
+
+            compile_expr(expr_node, vstack, labels, output);
+            pop_wrapper(REG_OP_AUX, vstack, output);
+            output.text.push(format!("{} {} {}", OP_XOR, REG_TEMP, REG_TEMP));
+
+            output.text.push(format!("{} {} {}", OP_CMP, REG_TEMP, 0));
+            output.text.push(format!("{} {}", JMP_EQ, if_label_after));
+            compile_stmt(stmt_node, vstack, labels, output);
+            output.text.push(format!("{}:", if_label_after));
         }
         ast::Stmt::IfElse(expr_node, true_stmt_node, false_stmt_node) => {
             unimplemented!();
@@ -260,20 +303,19 @@ fn compile_expr(
             labels.insert(label.clone());
             output.rodata.push(format!("{}: db `{}`, 0", label, s,));
             // TODO?: .len:  equ   $ - label
-            push_wrapper(REG_OP_TARGET, None, vstack, output);
+            push_wrapper(REG_OP_MAIN, None, vstack, output);
         }
         ast::Expr::Var(ident_node) => {
             // TODO: vstack... | OP_INC vs OP_DEC
             let offset = vstack_get_offset(vstack, ident_node.data());
-            output.text.push(format!("{} {} {}", OP_MOV, REG_OP_AUX, REG_BASE));
-            output.text.push(format!("{} {} {}", OP_INC, REG_OP_AUX, offset));
+            output.text.push(format!("{} {} [{} - {}]", OP_MOV, REG_OP_AUX, REG_BASE, offset));
             push_wrapper(&format!("[{}]", REG_OP_AUX), None, vstack, output);
         }
         ast::Expr::Neg(expr_node) => {
             compile_expr(expr_node, vstack, labels, output);
-            pop_wrapper(REG_OP_TARGET, vstack, output);
-            output.text.push(format!("{} {}", OP_NEGATION, REG_OP_TARGET));
-            push_wrapper(REG_OP_TARGET, None, vstack, output);
+            pop_wrapper(REG_OP_MAIN, vstack, output);
+            output.text.push(format!("{} {}", OP_NEGATION, REG_OP_MAIN));
+            push_wrapper(REG_OP_MAIN, None, vstack, output);
         }
         ast::Expr::Not(expr_node) => {
             compile_expr(expr_node, vstack, labels, output);
@@ -285,18 +327,15 @@ fn compile_expr(
         }
         ast::Expr::App(fname_node, arg_expr_nodes) => {
             let fname = fname_node.data();
-            for i in 0..=5 {
+            let args_count = arg_expr_nodes.len();
+            for i in 0..std::cmp::min(6, args_count) {
                 compile_expr(&arg_expr_nodes[i], vstack, labels, output);
-                output.text.push(format!("{} {} {}", OP_MOV, REG_OP_TARGET, ARG_REGS[i]));
+                pop_wrapper(ARG_REGS[i], vstack, output);
             }
-            // TODO: obsługa więcej niż 6 argumentów (obecnie OP_PUSH psuje)
-            // // TODO: dobra kolejność?
-            // // TODO: OP_PUSH mi psuje niezmiennik stosu :(
-            // for i in (6..arg_expr_nodes.len()).rev() {
-            //     compile_expr(&arg_expr_nodes[i], vstack, labels, output);
-            //     output.text.push(format!("{} {}", OP_PUSH, REG_OP_TARGET));
-            // }
-            // TODO: czy dobry prolog (lub jego brak?)
+            // TODO: dobra kolejność? Chyba tak...
+            for i in (6..args_count).rev() {
+                compile_expr(&arg_expr_nodes[i], vstack, labels, output);
+            }
             output.text.push(format!("{} {}", OP_CALL, fname));
             push_wrapper(REG_FN_RETVAL, None, vstack, output);
         }
@@ -306,7 +345,7 @@ fn compile_expr(
             compile_expr(&expr1, vstack, labels, output);
             compile_expr(&expr2, vstack, labels, output);
             pop_wrapper(REG_OP_AUX, vstack, output);
-            pop_wrapper(REG_OP_TARGET, vstack, output);
+            pop_wrapper(REG_OP_MAIN, vstack, output);
 
             let opcode = match expr.data() {
                 ast::Expr::Add(_, _) => OP_INC,
@@ -314,9 +353,9 @@ fn compile_expr(
                 ast::Expr::Mul(_, _) => OP_IMUL,
                 _ => unreachable!(),
             };
-            output.text.push(format!("{} {} {}", OP_MOV, REG_OP_TARGET, REG_OP_AUX));
+            output.text.push(format!("{} {} {}", OP_MOV, REG_OP_MAIN, REG_OP_AUX));
 
-            push_wrapper(REG_OP_TARGET, None, vstack, output);
+            push_wrapper(REG_OP_MAIN, None, vstack, output);
         }
         ast::Expr::Div(expr1, expr2)
         | ast::Expr::Mod(expr1, expr2) => {
@@ -341,15 +380,15 @@ fn compile_expr(
             compile_expr(&expr1, vstack, labels, output);
             compile_expr(&expr2, vstack, labels, output);
             pop_wrapper(REG_OP_AUX, vstack, output);
-            pop_wrapper(REG_OP_TARGET, vstack, output);
+            pop_wrapper(REG_OP_MAIN, vstack, output);
 
             let opcode = match expr.data() {
                 ast::Expr::And(_, _) => OP_AND,
                 ast::Expr::Or(_, _) => OP_OR,
                 _ => unreachable!(),
             };
-            output.text.push(format!("{} {} {}", opcode, REG_OP_TARGET, REG_OP_AUX));
-            push_wrapper(REG_OP_TARGET, None, vstack, output);
+            output.text.push(format!("{} {} {}", opcode, REG_OP_MAIN, REG_OP_AUX));
+            push_wrapper(REG_OP_MAIN, None, vstack, output);
         }
         ast::Expr::EQ(expr1, expr2) |
         ast::Expr::NEQ(expr1, expr2) |
@@ -360,10 +399,10 @@ fn compile_expr(
             compile_expr(&expr1, vstack, labels, output);
             compile_expr(&expr2, vstack, labels, output);
             pop_wrapper(REG_OP_AUX, vstack, output);
-            pop_wrapper(REG_OP_TARGET, vstack, output);
+            pop_wrapper(REG_OP_MAIN, vstack, output);
             output.text.push(format!("{} {} {}", OP_XOR, REG_TEMP, REG_TEMP));
 
-            output.text.push(format!("{} {} {}", OP_CMP, REG_OP_TARGET, REG_OP_AUX));
+            output.text.push(format!("{} {} {}", OP_CMP, REG_OP_MAIN, REG_OP_AUX));
             let opcode = match expr.data() {
                 ast::Expr::EQ(_, _)  => OP_SETcc_EQ,
                 ast::Expr::NEQ(_, _) => OP_SETcc_NEQ,
