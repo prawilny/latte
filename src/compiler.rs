@@ -102,19 +102,18 @@ fn error(msg: &str) -> ! {
 }
 
 fn push_wrapper(val: &str, name: Option<&str>, vstack: &mut VStack, output: &mut Output) {
-    unimplemented!();
+    let stack_name = match name {
+        Some(s) => s,
+        None => ".tmp",
+    };
     output.text.push(format!("{} {}", OP_PUSH, val));
-    // TODO: utrzymać niezmiennik
+    vstack.0.push(stack_name.to_string());
 }
 
-fn pop_wrapper(reg: &str, vstack: &mut VStack, output: &mut Output) {
-    unimplemented!();
-    output.text.push(format!("{} {}", OP_PUSH, reg));
+fn pop_wrapper(target: &str, vstack: &mut VStack, output: &mut Output) {
+    output.text.push(format!("{} {}", OP_POP, target));
 }
 
-// TODO: fix vstack...
-
-// TODO: czy jednak adresować względem rbp (a nie rsp)?
 fn vstack_get_offset(vstack: &VStack, ident: &ast::Ident) -> usize {
     match vstack.0.iter().rev().position(|i| i == ident) {
         None => error("use of undeclared variable"),
