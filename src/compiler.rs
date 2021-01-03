@@ -129,7 +129,7 @@ fn vstack_enter_scope(vstack: &mut VStack) {
     vstack.1.push(vstack.0.len());
 }
 
-fn vstack_exit_scope(vstack: &mut VStack) {
+fn vstack_exit_scope(vstack: &mut VStack, output: &mut Output) {
     let h_before = vstack.0.len();
     let h_after = match vstack.1.pop() {
         None => error("too many scope exits"),
@@ -138,7 +138,7 @@ fn vstack_exit_scope(vstack: &mut VStack) {
 
     vstack.0.truncate(h_after);
     // TODO: czy to jest ok?
-    println!("{} {} {}", OP_INC, REG_STACK, h_before - h_after);
+    output.text.push(format!("{} {} {}", OP_INC, REG_STACK, (h_before - h_after) * std::mem::size_of::<i64>()));
 }
 
 fn vstack_rename_last(vstack: &mut VStack, arg_names: &Vec<ast::Ident>) {
@@ -192,6 +192,7 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
         .iter()
         .map(|arg_node| arg_node.data().1.data().clone())
         .collect();
+    let arg_names_count = arg_names.len();
     output.text.push(format!("{}:", ident_node.data()));
 
     // prolog
@@ -200,8 +201,10 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
         .text
         .push(format!("{} {} {}", OP_MOV, REG_BASE, REG_STACK));
 
-    // kolejność?
-    vstack_rename_last(&mut vstack, &arg_names[6..arg_names.len()].to_vec());
+    if arg_names_count > 6 {
+        // kolejność?
+        vstack_rename_last(&mut vstack, &arg_names[6..arg_names.len()].to_vec());
+    }
     for i in 0..std::cmp::min(6, arg_nodes.len()) {
         push_wrapper(ARG_REGS[i], Some(&arg_names[i]), &mut vstack, output);
     }
@@ -228,7 +231,7 @@ fn compile_block(
         compile_stmt(stmt, vstack, labels, output);
     }
 
-    vstack_exit_scope(vstack);
+    vstack_exit_scope(vstack, output);
 }
 
 fn compile_stmt(
@@ -353,6 +356,7 @@ fn compile_expr(
             push_wrapper(REG_TEMP_BYTE, None, vstack, output);
         }
         ast::Expr::App(fname_node, arg_expr_nodes) => {
+            // TODO: stack alignment
             let fname = fname_node.data();
             let args_count = arg_expr_nodes.len();
             for i in 0..std::cmp::min(6, args_count) {
