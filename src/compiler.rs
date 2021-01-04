@@ -4,11 +4,12 @@ use lrpar::Span;
 
 use crate::latte_y as ast;
 
+static MEM_VAR_SIZE: &str = "qword";
+
 static REG_OP_MAIN: &str = "r11";
 static REG_OP_AUX: &str = "r10";
 static REG_TEMP: &str = "rax";
 static REG_TEMP_BYTE: &str = "al";
-// tj: wrapperu na push i pop wpisujące/kasujące z VStack ".stack"
 
 static REG_FN_RETVAL: &str = "rax";
 
@@ -23,8 +24,6 @@ static REG_DIVIDEND_LOW: &str = "rax";
 
 static ARG_REGS: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
 
-// static MEM_VAR_SIZE: &str = "qword";
-
 static OP_MOV: &str = "mov";
 static OP_XOR: &str = "xor";
 static OP_OR: &str = "or";
@@ -38,13 +37,10 @@ static OP_IDIV: &str = "idiv";
 static OP_NEGATION: &str = "neg";
 static OP_POP: &str = "pop";
 static OP_PUSH: &str = "push";
-// static OP_PUSH_RFLAGS: &str = "pushfq";
-// static OP_LOG_SHIFTR: &str = "shr";
-// static OP_NUM_SHIFTR: &str = "sar";
 static OP_CALL: &str = "call";
 static OP_CMP: &str = "cmp";
 static OP_RET: &str = "ret";
-static OP_MOV_STR_LIT: &str = "movabs";
+static OP_MOV_CONSTANT: &str = "movabs";
 
 static OP_SETCC_EQ: &str = "sete";
 static OP_SETCC_NEQ: &str = "setne";
@@ -56,34 +52,35 @@ static OP_SETCC_GEQ: &str = "setge";
 
 static JMP_EQ: &str = "je";
 
-// bit# \in [0, 1, ... 63]
-// static BIT_ZERO_FLAG: usize = 6;
-// static BIT_SIGN_FLAG: u8 = 7
-
-// TODO: uwaga na scope w if/while [rozwiązanie: przerobić deklaracje na wyrażenie]
 // TODO: czy wywalanie kompilatora w przypadku błędu typecheckera jest dobre?
 //       (niby "ERROR" w pierwszej lini stderr itd)
-// TODO: null na końcu stringów?
-// TODO: dodatkowe funkcje w runtime (długość stringa) lub jakoś inaczej długość stringa
 // TODO: czy mam błąd nie rezerwując miejsca na zmienne lokalne z góry?
-// TODO: upewnienie się, że flagi są ustawiane przez dobre instrukcje
-// TODO: zapisywanie nie-volatile rejestrów (te od dzielenia?)
 
 // TODO: zawartość stosu (przy call i ret głównie)
 
-// TODO: rzeczy stosowe (tj. kontatenacj: string + string)
+// TODO: rzeczy stertowe (tj. kontatenacj: string + string)
 
 // TODO: sprawdzenie minimalności mutowalności argumentów
 
 // TODO: upewnienie się, że dobrze wskazuję górę stosu
 
 // TODO: uwaga na stringi, bo sizeof(char) != sizeof(intXX)
-
 // TODO: alignment: stos i stringi
 
 // TODO: stała na size_of(ast::IntType)
 
 // TODO: overloading str `+` str
+
+// TODO: czy vstack_align działa dobrze? (czy push/pop rbp nie psuje)
+
+// TODO: testy czytania stringa/inta z klawiatury
+
+// TODO: PUSH wkłada na stos 32bitowe stałe
+
+// TODO: alignment stosu po tej stronie psuje ściąganie argumentów ze stosu chyba
+// TODO: trzeba wyrównywać biorąc pod uwagę liczbę argumentów
+
+// TODO: przejrzenie kodu
 
 // wychodzenie ze scope
 // (identyfikatory na stosie,
@@ -162,7 +159,8 @@ fn vstack_rename_last(vstack: &mut VStack, arg_names: &Vec<ast::Ident>) {
 // TODO: usunąć `wyrównuje stos do 16 bitów`
 fn vstack_align(vstack: &mut VStack, output: &mut Output) {
     if vstack.0.len() % 2 == 1 {
-        push_wrapper("0", Some(".align"), vstack, output);
+        output.text.push(format!("{} {}, {}", OP_MOV, REG_TEMP, "0"));
+        push_wrapper(REG_TEMP, Some(".align"), vstack, output);
     }
 }
 
@@ -290,7 +288,8 @@ fn compile_stmt(
             for item_node in item_nodes {
                 match item_node.data() {
                     ast::Item::NoInit(ident_node) => {
-                        push_wrapper("0", Some(&ident_node.data().clone()), vstack, output);
+                        // REG_TEMP jest niezdefiniowany
+                        push_wrapper(REG_TEMP, Some(&ident_node.data().clone()), vstack, output);
                     }
                     ast::Item::Init(ident_node, expr_node) => {
                         compile_expr(expr_node, vstack, labels, output);
@@ -318,7 +317,7 @@ fn compile_stmt(
 
             output.text.push(format!("{} {}, {}", OP_CMP, REG_TEMP, 0));
             output.text.push(format!("{} {}", JMP_EQ, if_label_after));
-            compile_stmt(stmt_node, vstack, labels, output);
+            compile_block(&vec![*stmt_node.clone()], vstack, labels, output); // workaround na deklaracje w ifie
             output.text.push(format!("{}:", if_label_after));
         }
         ast::Stmt::IfElse(expr_node, true_stmt_node, false_stmt_node) => {
@@ -337,26 +336,29 @@ fn compile_expr(
     output: &mut Output,
 ) {
     match expr.data() {
-        ast::Expr::Int(n) => push_wrapper(&n.to_string(), None, vstack, output),
+        ast::Expr::Int(n) => {
+            output.text.push(format!("{} {}, {}", OP_MOV, REG_TEMP, n));
+            push_wrapper(REG_TEMP, None, vstack, output);
+        }
         ast::Expr::Bool(b) => {
-            push_wrapper(&(if *b { 1 } else { 0 }).to_string(), None, vstack, output)
+            output.text.push(format!("{} {}, {}", OP_MOV, REG_TEMP, if *b { 1 } else { 0 }));
+            push_wrapper(REG_TEMP, None, vstack, output);
         }
         ast::Expr::Str(s) => {
             let label = format!("str_{}", labels.len() + 1);
             labels.insert(label.clone());
             output.rodata.push(format!("{}: .asciz {}", label, s,));
             // TODO?: .len:  equ   $ - label
-            output.text.push(format!("{} {}, offset {}", OP_MOV_STR_LIT, REG_OP_MAIN, label));
+            output.text.push(format!("{} {}, offset {}", OP_MOV_CONSTANT, REG_OP_MAIN, label));
             push_wrapper(REG_OP_MAIN, None, vstack, output);
         }
         ast::Expr::Var(ident_node) => {
-            // TODO: vstack... | OP_INC vs OP_DEC
             let offset = vstack_get_offset(vstack, ident_node.data());
             output.text.push(format!(
                 "{} {}, [{} - {}]",
                 OP_MOV, REG_OP_AUX, REG_BASE, offset
             ));
-            push_wrapper(&format!("[{}]", REG_OP_AUX), None, vstack, output);
+            push_wrapper(&format!("{} [{}]", MEM_VAR_SIZE, REG_OP_AUX), None, vstack, output);
         }
         ast::Expr::Neg(expr_node) => {
             compile_expr(expr_node, vstack, labels, output);
@@ -475,6 +477,7 @@ fn compile_expr(
                 _ => unreachable!(),
             };
             output.text.push(format!("{} {}", opcode, REG_TEMP_BYTE));
+            push_wrapper(REG_TEMP, None, vstack, output);
         }
     }
 }
