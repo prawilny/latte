@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 
@@ -11,8 +12,8 @@ void error() {
     exit(1);
 }
 
-void printInt(const int i) {
-    printf("%d\n", i);
+void printInt(const int64_t i) {
+    printf("%ld\n", i);
 }
 
 void printString(const string s) {
