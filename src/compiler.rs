@@ -44,6 +44,7 @@ static OP_PUSH: &str = "push";
 static OP_CALL: &str = "call";
 static OP_CMP: &str = "cmp";
 static OP_RET: &str = "ret";
+static OP_MOV_STR_LIT: &str = "movabs";
 
 static OP_SETCC_EQ: &str = "sete";
 static OP_SETCC_NEQ: &str = "setne";
@@ -152,6 +153,14 @@ fn vstack_rename_last(vstack: &mut VStack, arg_names: &Vec<ast::Ident>) {
     // TODO: kolejność [czy tam aby nie powinno się pojawić rev()?]
     for (arg_name, stack_name) in arg_names.iter().zip(vstack.0.iter_mut().rev()) {
         *stack_name = arg_name.clone();
+    }
+}
+
+// TODO: kod na zmienne 64-bitowe
+// TODO: usunąć `wyrównuje stos do 16 bitów`
+fn vstack_align(vstack: &mut VStack, output: &mut Output) {
+    if vstack.0.len() % 2 == 1 {
+        push_wrapper("0", Some(".align"), vstack, output);
     }
 }
 
@@ -335,6 +344,7 @@ fn compile_expr(
             labels.insert(label.clone());
             output.rodata.push(format!("{}: .asciz {}", label, s,));
             // TODO?: .len:  equ   $ - label
+            output.text.push(format!("{} {}, offset {}", OP_MOV_STR_LIT, REG_OP_MAIN, label));
             push_wrapper(REG_OP_MAIN, None, vstack, output);
         }
         ast::Expr::Var(ident_node) => {
@@ -376,6 +386,7 @@ fn compile_expr(
             for i in (6..args_count).rev() {
                 compile_expr(&arg_expr_nodes[i], vstack, labels, output);
             }
+            vstack_align(vstack, output);
             output.text.push(format!("{} {}", OP_CALL, fname));
             push_wrapper(REG_FN_RETVAL, None, vstack, output);
         }
