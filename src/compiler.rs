@@ -55,48 +55,32 @@ static OP_SETCC_GEQ: &str = "setge";
 
 static JMP_EQ: &str = "je";
 
-// TODO: czy wywalanie kompilatora w przypadku błędu typecheckera jest dobre?
-//       (niby "ERROR" w pierwszej lini stderr itd)
-// TODO: czy mam błąd nie rezerwując miejsca na zmienne lokalne z góry?
-
-// TODO: zawartość stosu (przy call i ret głównie)
-
 // TODO: rzeczy stertowe (tj. kontatenacj: string + string)
 
-// TODO: sprawdzenie minimalności mutowalności argumentów
-
-// TODO: upewnienie się, że dobrze wskazuję górę stosu
-
-// TODO: uwaga na stringi, bo sizeof(char) != sizeof(intXX)
-// TODO: alignment: stos i stringi
-
-// TODO: stała na size_of(ast::IntType)
-
 // TODO: overloading str `+` str
-
-// TODO: czy vstack_align działa dobrze? (czy push/pop rbp nie psuje)
-
-// TODO: testy czytania stringa/inta z klawiatury
-
-// TODO: PUSH wkłada na stos 32bitowe stałe
+// TODO: przerabianie string "+" string na call __strlen(string, string) w typecheckerze
 
 // TODO: alignment stosu po tej stronie psuje ściąganie argumentów ze stosu chyba
 // TODO: trzeba wyrównywać biorąc pod uwagę liczbę argumentów
 
+// TODO: sprawdzenie minimalności mutowalności argumentów
+
+// TODO: kolejność argumentów na stosie (wkładanie, ściąganie, vstack_align)
+
+// TODO: uwaga na stringi, bo sizeof(char) != sizeof(intXX)
+// TODO: alignment: stos i stringi
+// TODO: czy vstack_align działa dobrze? (czy push/pop rbp nie psuje)
+
+// TODO: stała na size_of(ast::IntType)
+
+// TODO: testy czytania stringa/inta z klawiatury
+// TODO: testy zagniezdzonych funkcji z wieloma argumentami i zmienne w nich
+
 // TODO: przejrzenie kodu
 
-// wychodzenie ze scope
-// (identyfikatory na stosie,
-//    wysokość stosu do tego miejsca)
 type VStack = (Vec<ast::Ident>, Vec<usize>);
 type Label = String;
-// type Literal = String;
-// type Labels = HashSet<Label>;
 
-// TODO: deduplikacja stringów w .rodata
-// type StrEnv = HashMap<Literal, Label>;
-
-// (dyrektywy, .rodata, .text)
 #[derive(Default)]
 struct Output {
     directives: Vec<String>,
@@ -121,6 +105,7 @@ fn push_wrapper(val: &str, name: Option<&str>, vstack: &mut VStack, output: &mut
 
 fn pop_wrapper(target: &str, vstack: &mut VStack, output: &mut Output) {
     output.text.push(format!("{} {}", OP_POP, target));
+    vstack.0.pop();
 }
 
 fn vstack_get_offset(vstack: &VStack, ident: &ast::Ident) -> usize {
@@ -351,7 +336,6 @@ fn compile_expr(
             let label = format!("str_{}", labels.len() + 1);
             labels.insert(label.clone());
             output.rodata.push(format!("{}: .asciz {}", label, s,));
-            // TODO?: .len:  equ   $ - label
             output.text.push(format!("{} {}, offset {}", OP_MOV_CONSTANT, REG_OP_MAIN, label));
             push_wrapper(REG_OP_MAIN, None, vstack, output);
         }
