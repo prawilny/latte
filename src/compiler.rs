@@ -83,6 +83,8 @@ static JMP_EQ: &str = "je";
 
 // TODO: stała na size_of(ast::IntType)
 
+// TODO: overloading str `+` str
+
 // wychodzenie ze scope
 // (identyfikatory na stosie,
 //    wysokość stosu do tego miejsca)
