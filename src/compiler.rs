@@ -1,6 +1,4 @@
-use std::collections::{HashMap, HashSet};
-
-use lrpar::Span;
+use std::collections::HashSet;
 
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
@@ -13,8 +11,8 @@ static FN_STRCAT: &str = "__strcat";
 
 static REG_OP_MAIN: &str = "r11";
 static REG_OP_AUX: &str = "r10";
-static REG_TEMP: &str = "rax";
-static REG_TEMP_BYTE: &str = "al";
+static REG_TMP: &str = "rax";
+static REG_TMP_BYTE: &str = "al";
 
 static REG_FN_RETVAL: &str = "rax";
 
@@ -55,6 +53,7 @@ static OP_SETCC_GTH: &str = "setg";
 static OP_SETCC_GEQ: &str = "setge";
 
 static JMP_EQ: &str = "je";
+static JMP_ALWAYS: &str = "jmp";
 
 // TODO: kolejność argumentów na stosie (wkładanie, ściąganie, vstack_rename_last)
 
@@ -69,6 +68,8 @@ static JMP_EQ: &str = "je";
 // TODO: przejrzenie kodu
 
 // TODO: leniwość AND i OR
+
+// TODO: czy może być wiele etykiet jednej instrukcji?
 
 type VStack = (Vec<ast::Ident>, Vec<usize>);
 type Label = String;
@@ -254,7 +255,7 @@ fn compile_stmt(
             for item_node in item_nodes {
                 match item_node.data() {
                     ast::Item::NoInit(ident_node) => {
-                        push_wrapper(REG_TEMP, Some(&ident_node.data().clone()), vstack, output);
+                        push_wrapper(REG_TMP, Some(&ident_node.data().clone()), vstack, output);
                     }
                     ast::Item::Init(ident_node, expr_node) => {
                         compile_expr(expr_node, vstack, labels, output);
@@ -277,18 +278,64 @@ fn compile_stmt(
             pop_wrapper(REG_OP_AUX, vstack, output);
             output
                 .text
-                .push(format!("{} {}, {}", OP_XOR, REG_TEMP, REG_TEMP));
+                .push(format!("{} {}, {}", OP_XOR, REG_TMP, REG_TMP));
 
-            output.text.push(format!("{} {}, {}", OP_CMP, REG_TEMP, 0));
+            output.text.push(format!("{} {}, {}", OP_CMP, REG_TMP, 0));
             output.text.push(format!("{} {}", JMP_EQ, if_label_after));
             compile_block(&vec![*stmt_node.clone()], vstack, labels, output); // workaround na deklaracje w ifie
             output.text.push(format!("{}:", if_label_after));
         }
         ast::Stmt::IfElse(expr_node, true_stmt_node, false_stmt_node) => {
-            unimplemented!();
+            let cond_label_after = format!("cond_{}_after", labels.len());
+            let cond_label_true = format!("cond_{}_if", labels.len());
+            let cond_label_false = format!("cond_{}_else", labels.len());
+            labels.extend(vec![
+                cond_label_after.clone(),
+                cond_label_true.clone(),
+                cond_label_false.clone(),
+            ]);
+
+            compile_expr(expr_node, vstack, labels, output);
+            pop_wrapper(REG_TMP, vstack, output);
+            output.text.push(format!("{} {} {}", OP_CMP, REG_TMP, 0));
+            output.text.push(format!("{} {}", JMP_EQ, cond_label_false));
+            output
+                .text
+                .push(format!("{} {}", JMP_ALWAYS, cond_label_true));
+
+            output.text.push(format!("{}:", &cond_label_true));
+            compile_block(&vec![*true_stmt_node.clone()], vstack, labels, output);
+            output
+                .text
+                .push(format!("{} {}", JMP_ALWAYS, cond_label_after));
+
+            output.text.push(format!("{}:", &cond_label_false));
+            compile_block(&vec![*false_stmt_node.clone()], vstack, labels, output);
+            output
+                .text
+                .push(format!("{} {}", JMP_ALWAYS, cond_label_after));
+
+            output.text.push(format!("{}:", &cond_label_after));
         }
         ast::Stmt::While(expr_node, stmt_node) => {
-            unimplemented!();
+            let while_label_cond = format!("while_{}_cond", labels.len());
+            let while_label_after = format!("while_{}_after", labels.len());
+            labels.extend(vec![while_label_cond.clone(), while_label_after.clone()]);
+
+            compile_expr(expr_node, vstack, labels, output);
+            pop_wrapper(REG_TMP, vstack, output);
+            output.text.push(format!("{} {} {}", OP_CMP, REG_TMP, 0));
+            output
+                .text
+                .push(format!("{} {}", JMP_EQ, while_label_after));
+
+            output.text.push(format!("{}:", &while_label_cond));
+            compile_block(&vec![*stmt_node.clone()], vstack, labels, output);
+            output
+                .text
+                .push(format!("{} {}", JMP_ALWAYS, while_label_cond));
+
+            output.text.push(format!("{}:", &while_label_after));
         }
     }
 }
@@ -301,17 +348,17 @@ fn compile_expr(
 ) {
     match expr.data() {
         ast::Expr::Int(n) => {
-            output.text.push(format!("{} {}, {}", OP_MOV, REG_TEMP, n));
-            push_wrapper(REG_TEMP, None, vstack, output);
+            output.text.push(format!("{} {}, {}", OP_MOV, REG_TMP, n));
+            push_wrapper(REG_TMP, None, vstack, output);
         }
         ast::Expr::Bool(b) => {
             output.text.push(format!(
                 "{} {}, {}",
                 OP_MOV,
-                REG_TEMP,
+                REG_TMP,
                 if *b { 1 } else { 0 }
             ));
-            push_wrapper(REG_TEMP, None, vstack, output);
+            push_wrapper(REG_TMP, None, vstack, output);
         }
         ast::Expr::Str(s) => {
             let label = format!("str_{}", labels.len() + 1);
@@ -347,14 +394,14 @@ fn compile_expr(
             pop_wrapper(REG_OP_AUX, vstack, output);
             output
                 .text
-                .push(format!("{} {}, {}", OP_XOR, REG_TEMP, REG_TEMP));
+                .push(format!("{} {}, {}", OP_XOR, REG_TMP, REG_TMP));
             output
                 .text
                 .push(format!("{} {}, {}", OP_CMP, REG_OP_AUX, 0));
             output
                 .text
-                .push(format!("{} {}", OP_SETCC_NEQ, REG_TEMP_BYTE));
-            push_wrapper(REG_TEMP_BYTE, None, vstack, output);
+                .push(format!("{} {}", OP_SETCC_NEQ, REG_TMP_BYTE));
+            push_wrapper(REG_TMP_BYTE, None, vstack, output);
         }
         ast::Expr::App(fname_node, arg_expr_nodes) => {
             let fname = fname_node.data();
@@ -448,7 +495,7 @@ fn compile_expr(
             pop_wrapper(REG_OP_MAIN, vstack, output);
             output
                 .text
-                .push(format!("{} {}, {}", OP_XOR, REG_TEMP, REG_TEMP));
+                .push(format!("{} {}, {}", OP_XOR, REG_TMP, REG_TMP));
 
             output
                 .text
@@ -462,8 +509,8 @@ fn compile_expr(
                 ast::Expr::GEQ(_, _) => OP_SETCC_GEQ,
                 _ => unreachable!(),
             };
-            output.text.push(format!("{} {}", opcode, REG_TEMP_BYTE));
-            push_wrapper(REG_TEMP, None, vstack, output);
+            output.text.push(format!("{} {}", opcode, REG_TMP_BYTE));
+            push_wrapper(REG_TMP, None, vstack, output);
         }
     }
 }

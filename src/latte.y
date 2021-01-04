@@ -470,7 +470,7 @@ pub enum Prim {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     Var(Prim),
-    Fun(FunType)
+//    Fun(FunType)
 }
 
 #[derive(Debug, Clone)]
