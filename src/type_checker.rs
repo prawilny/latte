@@ -221,7 +221,7 @@ fn check_expr(
     fenv: &FEnv,
     lexer: &dyn Lexer<u32>,
 ) -> Result<ast::Prim, String> {
-    match expr.data() {
+    let retval = match expr.data() {
         ast::Expr::App(ident_node, expr_nodes) => {
             let (fun_type, fun_arg_types) = match fenv.get(ident_node.data()) {
                 None => {
@@ -372,7 +372,10 @@ fn check_expr(
                 )),
             }
         }
-    }
+    };
+    let expr_type = retval?;
+    expr.set_type(&ast::Type::Var(expr_type.clone()));
+    Ok(expr_type)
 }
 
 fn check_block(
