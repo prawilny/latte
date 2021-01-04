@@ -12,11 +12,11 @@ void error() {
 }
 
 void printInt(const int i) {
-    printf("%d", i);
+    printf("%d\n", i);
 }
 
 void printString(const string s) {
-    printf("%s", s);
+    printf("%s\n", s);
 }
 
 int readInt() {
