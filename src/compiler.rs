@@ -62,7 +62,9 @@ static JMP_EQ: &str = "je";
 
 // TODO: sprawdzenie minimalności mutowalności argumentów
 
-// TODO: kolejność argumentów na stosie (wkładanie, ściąganie, vstack_align)
+// TODO: kolejność argumentów na stosie (wkładanie, ściąganie, vstack_rename_last)
+
+// TODO: poprawność vstack_get_offset
 
 // TODO: uwaga na stringi, bo sizeof(char) != sizeof(intXX)
 // TODO: alignment: stos i stringi
@@ -73,6 +75,8 @@ static JMP_EQ: &str = "je";
 // TODO: testy zagniezdzonych funkcji z wieloma argumentami i zmienne w nich
 
 // TODO: przejrzenie kodu
+
+// TODO: leniwość AND i OR
 
 type VStack = (Vec<ast::Ident>, Vec<usize>);
 type Label = String;
@@ -128,12 +132,12 @@ fn vstack_exit_scope(vstack: &mut VStack, output: &mut Output) {
     eprintln!("after {}", h_after);
 
     vstack.0.truncate(h_after);
-    // TODO: czy to jest ok?
-    output.text.push(format!("{} {}, {}", OP_ADD, REG_STACK, (h_before - h_after) * INT_SIZE));
+    if h_after != h_before {
+        output.text.push(format!("{} {}, {}", OP_ADD, REG_STACK, (h_before - h_after) * INT_SIZE));
+    }
 }
 
 fn vstack_rename_last(vstack: &mut VStack, arg_names: &Vec<ast::Ident>) {
-    // TODO: kolejność [czy tam aby nie powinno się pojawić rev()?]
     for (arg_name, stack_name) in arg_names.iter().zip(vstack.0.iter_mut().rev()) {
         *stack_name = arg_name.clone();
     }
@@ -218,7 +222,6 @@ fn compile_block(
 ) {
     vstack_enter_scope(vstack);
 
-    // TODO: czy to wystarczy?
     for stmt in stmts {
         compile_stmt(stmt, vstack, labels, output);
     }
@@ -238,21 +241,13 @@ fn compile_stmt(
         ast::Stmt::Expr(expr_node) => compile_expr(expr_node, vstack, labels, output),
         ast::Stmt::Block(block_node) => compile_block(block_node.data(), vstack, labels, output),
         ast::Stmt::Incr(ident_node) | ast::Stmt::Decr(ident_node) => {
-            let var_expr = ast::Expr::Var(ident_node.clone());
-            let var_node = ast::Node::new(Span::new(0, 0), var_expr);
-            compile_expr(&var_node, vstack, labels, output);
-            // pop_wrapper(REG_TEMP, vstack, output);
+            let offset = vstack_get_offset(vstack, ident_node.data());
             let op_code = match stmt.data() {
                 ast::Stmt::Incr(_) => OP_INC,
                 ast::Stmt::Decr(_) => OP_DEC,
                 _ => unreachable!(),
             };
-            output.text.push(format!("{} {}, {}", op_code, REG_TEMP, 1));
-            // TODO: aktualizacja wartości na stosie:
-            // wczytać wartość do rejestru
-            // zmienić
-            // zapisać do rejestru
-            // NIE wpychać na stos
+            output.text.push(format!("{} {} [{} - {}]", op_code, MEM_VAR_SIZE, REG_BASE, offset));
         }
         ast::Stmt::VRet => (),
         ast::Stmt::Ret(expr_node) => {
@@ -359,9 +354,10 @@ fn compile_expr(
                 compile_expr(&arg_expr_nodes[i], vstack, labels, output);
                 pop_wrapper(ARG_REGS[i], vstack, output);
             }
-            // TODO: dobra kolejność? Chyba tak...
-            for i in (6..args_count).rev() {
-                compile_expr(&arg_expr_nodes[i], vstack, labels, output);
+            if args_count > 6 {
+                for i in (6..args_count).rev() {
+                    compile_expr(&arg_expr_nodes[i], vstack, labels, output);
+                }
             }
             output.text.push(format!("{} {}", OP_CALL, fname));
             push_wrapper(REG_FN_RETVAL, None, vstack, output);
@@ -406,7 +402,6 @@ fn compile_expr(
             push_wrapper(result_reg, None, vstack, output);
         }
         ast::Expr::And(expr1, expr2) | ast::Expr::Or(expr1, expr2) => {
-            // TODO: leniwość
             compile_expr(&expr1, vstack, labels, output);
             compile_expr(&expr2, vstack, labels, output);
             pop_wrapper(REG_OP_AUX, vstack, output);
