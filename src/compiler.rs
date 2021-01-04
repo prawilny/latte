@@ -3,8 +3,11 @@ use std::collections::{HashMap, HashSet};
 use lrpar::Span;
 
 use crate::latte_y as ast;
+use crate::latte_y::IntType;
 
 static MEM_VAR_SIZE: &str = "qword";
+// TODO: statyczne sprawdzenie, czy sizeof(IntType) == 8
+static INT_SIZE: usize = std::mem::size_of::<IntType>();
 
 static REG_OP_MAIN: &str = "r11";
 static REG_OP_AUX: &str = "r10";
@@ -123,7 +126,7 @@ fn pop_wrapper(target: &str, vstack: &mut VStack, output: &mut Output) {
 fn vstack_get_offset(vstack: &VStack, ident: &ast::Ident) -> usize {
     match vstack.0.iter().rev().position(|i| i == ident) {
         None => error("use of undeclared variable"),
-        Some(n) => n * std::mem::size_of::<i64>(),
+        Some(n) => n * INT_SIZE,
     }
 }
 
@@ -145,7 +148,7 @@ fn vstack_exit_scope(vstack: &mut VStack, output: &mut Output) {
 
     vstack.0.truncate(h_after);
     // TODO: czy to jest ok?
-    output.text.push(format!("{} {}, {}", OP_ADD, REG_STACK, (h_before - h_after) * std::mem::size_of::<i64>()));
+    output.text.push(format!("{} {}, {}", OP_ADD, REG_STACK, (h_before - h_after) * INT_SIZE));
 }
 
 fn vstack_rename_last(vstack: &mut VStack, arg_names: &Vec<ast::Ident>) {
