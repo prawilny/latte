@@ -53,16 +53,8 @@ static OP_SETCC_LTH: &str = "setl";
 static OP_SETCC_LEQ: &str = "setle";
 static OP_SETCC_GTH: &str = "setg";
 static OP_SETCC_GEQ: &str = "setge";
-// static OP_SETCC_NONZERO: &str = "setnz";
 
 static JMP_EQ: &str = "je";
-
-// TODO: rzeczy stertowe (tj. kontatenacj: string + string)
-
-// TODO: overloading str `+` str
-// TODO: przerabianie string "+" string na call __strlen(string, string) w typecheckerze
-
-// TODO: sprawdzenie minimalności mutowalności argumentów
 
 // TODO: kolejność argumentów na stosie (wkładanie, ściąganie, vstack_rename_last)
 
@@ -70,8 +62,6 @@ static JMP_EQ: &str = "je";
 
 // TODO: uwaga na stringi, bo sizeof(char) != sizeof(intXX)
 // TODO: alignment: stos i stringi
-
-// TODO: stała na size_of(ast::IntType)
 
 // TODO: testy czytania stringa/inta z klawiatury
 // TODO: testy zagniezdzonych funkcji z wieloma argumentami i zmienne w nich
@@ -197,14 +187,12 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
     let arg_names_count = arg_names.len();
     output.text.push(format!("{}:", ident_node.data()));
 
-    // prolog
     output.text.push(format!("{} {}", OP_PUSH, REG_BASE));
     output
         .text
         .push(format!("{} {}, {}", OP_MOV, REG_BASE, REG_STACK));
 
     if arg_names_count > 6 {
-        // kolejność?
         vstack_rename_last(&mut vstack, &arg_names[6..arg_names.len()].to_vec());
     }
     for i in 0..std::cmp::min(6, arg_nodes.len()) {
@@ -213,7 +201,6 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
 
     compile_block(block_node.data(), &mut vstack, labels, output);
 
-    // epilog
     output
         .text
         .push(format!("{} {}, [{}]", OP_MOV, REG_BASE, REG_BASE));
@@ -267,7 +254,6 @@ fn compile_stmt(
             for item_node in item_nodes {
                 match item_node.data() {
                     ast::Item::NoInit(ident_node) => {
-                        // REG_TEMP jest niezdefiniowany
                         push_wrapper(REG_TEMP, Some(&ident_node.data().clone()), vstack, output);
                     }
                     ast::Item::Init(ident_node, expr_node) => {
@@ -283,9 +269,8 @@ fn compile_stmt(
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(&format!("[{} - {}]", REG_BASE, offset), vstack, output);
         }
-        // TODO: uwaga na scope (w ifie bez {})
         ast::Stmt::If(expr_node, stmt_node) => {
-            let if_label_after = format!("if_{}_after", labels.len()); // "{}_after", if_label
+            let if_label_after = format!("if_{}_after", labels.len());
             labels.insert(if_label_after.clone());
 
             compile_expr(expr_node, vstack, labels, output);
@@ -386,7 +371,6 @@ fn compile_expr(
             output.text.push(format!("{} {}", OP_CALL, fname));
             push_wrapper(REG_FN_RETVAL, None, vstack, output);
         }
-        // konkatenacja
         ast::Expr::Add(expr1, expr2) if expr.get_type() == ast::Type::Var(ast::Prim::Str) => {
             compile_expr(&expr1, vstack, labels, output);
             compile_expr(&expr2, vstack, labels, output);
