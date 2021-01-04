@@ -369,18 +369,25 @@ SimpleStmt -> Result<Node<Stmt>, ()>:
 %%
 // Any functions here are in scope for all the grammar actions above.
 
-use std::fmt::Debug;
 use ::lrpar::Span;
+use std::fmt::Debug;
+use std::cell::RefCell;
+use std::option::Option;
 
 #[derive(Debug, Clone)]
 pub struct Node<N: Debug + Clone> {
     span: Span,
     data: N,
+    static_type: RefCell<Option<Type>>,
 }
 
 impl<N: Debug + Clone> Node<N> {
     pub fn new(span: Span, data: N) -> Node<N> {
-        Node{span, data}
+        Node{
+          span,
+          data,
+          static_type: RefCell::new(None),
+        }
     }
 
     pub fn span(&self) -> &Span {
@@ -389,6 +396,14 @@ impl<N: Debug + Clone> Node<N> {
 
     pub fn data(&self) -> &N {
         &self.data
+    }
+
+    pub fn set_type(&self, t: &Type) {
+        self.static_type.replace(Some(t.clone()));
+    }
+
+    pub fn get_type(&self) -> Type {
+        self.static_type.borrow().clone().unwrap()
     }
 }
 
@@ -450,6 +465,12 @@ pub enum Prim {
     Str,
     Void,
     Bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Type {
+    Var(Prim),
+    Fun(FunType)
 }
 
 #[derive(Debug, Clone)]
