@@ -9,6 +9,8 @@ static MEM_VAR_SIZE: &str = "qword";
 // TODO: statyczne sprawdzenie, czy sizeof(IntType) == 8
 static INT_SIZE: usize = std::mem::size_of::<IntType>();
 
+static FN_STRCAT: &str = "__strcat";
+
 static REG_OP_MAIN: &str = "r11";
 static REG_OP_AUX: &str = "r10";
 static REG_TEMP: &str = "rax";
@@ -133,7 +135,12 @@ fn vstack_exit_scope(vstack: &mut VStack, output: &mut Output) {
 
     vstack.0.truncate(h_after);
     if h_after != h_before {
-        output.text.push(format!("{} {}, {}", OP_ADD, REG_STACK, (h_before - h_after) * INT_SIZE));
+        output.text.push(format!(
+            "{} {}, {}",
+            OP_ADD,
+            REG_STACK,
+            (h_before - h_after) * INT_SIZE
+        ));
     }
 }
 
@@ -206,7 +213,6 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
 
     compile_block(block_node.data(), &mut vstack, labels, output);
 
-
     // epilog
     output
         .text
@@ -247,7 +253,10 @@ fn compile_stmt(
                 ast::Stmt::Decr(_) => OP_DEC,
                 _ => unreachable!(),
             };
-            output.text.push(format!("{} {} [{} - {}]", op_code, MEM_VAR_SIZE, REG_BASE, offset));
+            output.text.push(format!(
+                "{} {} [{} - {}]",
+                op_code, MEM_VAR_SIZE, REG_BASE, offset
+            ));
         }
         ast::Stmt::VRet => (),
         ast::Stmt::Ret(expr_node) => {
@@ -311,14 +320,22 @@ fn compile_expr(
             push_wrapper(REG_TEMP, None, vstack, output);
         }
         ast::Expr::Bool(b) => {
-            output.text.push(format!("{} {}, {}", OP_MOV, REG_TEMP, if *b { 1 } else { 0 }));
+            output.text.push(format!(
+                "{} {}, {}",
+                OP_MOV,
+                REG_TEMP,
+                if *b { 1 } else { 0 }
+            ));
             push_wrapper(REG_TEMP, None, vstack, output);
         }
         ast::Expr::Str(s) => {
             let label = format!("str_{}", labels.len() + 1);
             labels.insert(label.clone());
             output.rodata.push(format!("{}: .asciz {}", label, s,));
-            output.text.push(format!("{} {}, offset {}", OP_MOV_CONSTANT, REG_OP_MAIN, label));
+            output.text.push(format!(
+                "{} {}, offset {}",
+                OP_MOV_CONSTANT, REG_OP_MAIN, label
+            ));
             push_wrapper(REG_OP_MAIN, None, vstack, output);
         }
         ast::Expr::Var(ident_node) => {
@@ -327,7 +344,12 @@ fn compile_expr(
                 "{} {}, [{} - {}]",
                 OP_MOV, REG_OP_AUX, REG_BASE, offset
             ));
-            push_wrapper(&format!("{} [{}]", MEM_VAR_SIZE, REG_OP_AUX), None, vstack, output);
+            push_wrapper(
+                &format!("{} [{}]", MEM_VAR_SIZE, REG_OP_AUX),
+                None,
+                vstack,
+                output,
+            );
         }
         ast::Expr::Neg(expr_node) => {
             compile_expr(expr_node, vstack, labels, output);
@@ -341,7 +363,9 @@ fn compile_expr(
             output
                 .text
                 .push(format!("{} {}, {}", OP_XOR, REG_TEMP, REG_TEMP));
-            output.text.push(format!("{} {}, {}", OP_CMP, REG_OP_AUX, 0));
+            output
+                .text
+                .push(format!("{} {}, {}", OP_CMP, REG_OP_AUX, 0));
             output
                 .text
                 .push(format!("{} {}", OP_SETCC_NEQ, REG_TEMP_BYTE));
@@ -360,6 +384,17 @@ fn compile_expr(
                 }
             }
             output.text.push(format!("{} {}", OP_CALL, fname));
+            push_wrapper(REG_FN_RETVAL, None, vstack, output);
+        }
+        // konkatenacja
+        ast::Expr::Add(expr1, expr2) if expr.get_type() == ast::Type::Var(ast::Prim::Str) => {
+            compile_expr(&expr1, vstack, labels, output);
+            compile_expr(&expr2, vstack, labels, output);
+            pop_wrapper(ARG_REGS[1], vstack, output);
+            pop_wrapper(ARG_REGS[0], vstack, output);
+
+            output.text.push(format!("{} {}", OP_CALL, FN_STRCAT));
+
             push_wrapper(REG_FN_RETVAL, None, vstack, output);
         }
         ast::Expr::Add(expr1, expr2)
