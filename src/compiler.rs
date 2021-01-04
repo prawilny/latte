@@ -60,16 +60,12 @@ static JMP_EQ: &str = "je";
 // TODO: overloading str `+` str
 // TODO: przerabianie string "+" string na call __strlen(string, string) w typecheckerze
 
-// TODO: alignment stosu po tej stronie psuje ściąganie argumentów ze stosu chyba
-// TODO: trzeba wyrównywać biorąc pod uwagę liczbę argumentów
-
 // TODO: sprawdzenie minimalności mutowalności argumentów
 
 // TODO: kolejność argumentów na stosie (wkładanie, ściąganie, vstack_align)
 
 // TODO: uwaga na stringi, bo sizeof(char) != sizeof(intXX)
 // TODO: alignment: stos i stringi
-// TODO: czy vstack_align działa dobrze? (czy push/pop rbp nie psuje)
 
 // TODO: stała na size_of(ast::IntType)
 
@@ -140,15 +136,6 @@ fn vstack_rename_last(vstack: &mut VStack, arg_names: &Vec<ast::Ident>) {
     // TODO: kolejność [czy tam aby nie powinno się pojawić rev()?]
     for (arg_name, stack_name) in arg_names.iter().zip(vstack.0.iter_mut().rev()) {
         *stack_name = arg_name.clone();
-    }
-}
-
-// TODO: kod na zmienne 64-bitowe
-// TODO: usunąć `wyrównuje stos do 16 bitów`
-fn vstack_align(vstack: &mut VStack, output: &mut Output) {
-    if vstack.0.len() % 2 == 1 {
-        output.text.push(format!("{} {}, {}", OP_MOV, REG_TEMP, "0"));
-        push_wrapper(REG_TEMP, Some(".align"), vstack, output);
     }
 }
 
@@ -366,7 +353,6 @@ fn compile_expr(
             push_wrapper(REG_TEMP_BYTE, None, vstack, output);
         }
         ast::Expr::App(fname_node, arg_expr_nodes) => {
-            // TODO: stack alignment
             let fname = fname_node.data();
             let args_count = arg_expr_nodes.len();
             for i in 0..std::cmp::min(6, args_count) {
@@ -377,7 +363,6 @@ fn compile_expr(
             for i in (6..args_count).rev() {
                 compile_expr(&arg_expr_nodes[i], vstack, labels, output);
             }
-            vstack_align(vstack, output);
             output.text.push(format!("{} {}", OP_CALL, fname));
             push_wrapper(REG_FN_RETVAL, None, vstack, output);
         }
