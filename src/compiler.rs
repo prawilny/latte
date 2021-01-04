@@ -268,7 +268,11 @@ fn compile_stmt(
             let offset = vstack_get_offset(vstack, ident_node.data());
 
             compile_expr(expr_node, vstack, labels, output);
-            pop_wrapper(&format!("[{} - {}]", REG_BASE, offset), vstack, output);
+            pop_wrapper(
+                &format!("{} [{} - {}]", MEM_VAR_SIZE, REG_BASE, offset),
+                vstack,
+                output,
+            );
         }
         ast::Stmt::If(expr_node, stmt_node) => {
             let if_label_after = format!("if_{}_after", labels.len());
@@ -297,7 +301,7 @@ fn compile_stmt(
 
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_TMP, vstack, output);
-            output.text.push(format!("{} {} {}", OP_CMP, REG_TMP, 0));
+            output.text.push(format!("{} {}, {}", OP_CMP, REG_TMP, 0));
             output.text.push(format!("{} {}", JMP_EQ, cond_label_false));
             output
                 .text
@@ -324,7 +328,7 @@ fn compile_stmt(
 
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_TMP, vstack, output);
-            output.text.push(format!("{} {} {}", OP_CMP, REG_TMP, 0));
+            output.text.push(format!("{} {}, {}", OP_CMP, REG_TMP, 0));
             output
                 .text
                 .push(format!("{} {}", JMP_EQ, while_label_after));
@@ -373,8 +377,8 @@ fn compile_expr(
         ast::Expr::Var(ident_node) => {
             let offset = vstack_get_offset(vstack, ident_node.data());
             output.text.push(format!(
-                "{} {}, [{} - {}]",
-                OP_MOV, REG_OP_AUX, REG_BASE, offset
+                "{} {}, {} [{} - {}]",
+                OP_MOV, REG_OP_AUX, MEM_VAR_SIZE, REG_BASE, offset
             ));
             push_wrapper(
                 &format!("{} [{}]", MEM_VAR_SIZE, REG_OP_AUX),
