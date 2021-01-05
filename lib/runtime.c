@@ -38,7 +38,7 @@ string __strcat(const string s1, const string s2) {
     string buf = (string) malloc(buf_len);
 
     memcpy(buf, s1, s1_len);
-    memcpy(buf, s2, s2_len);
+    memcpy(buf + s1_len, s2, s2_len);
     buf[buf_len - 1] = 0;
 
     return buf;
