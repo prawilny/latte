@@ -27,11 +27,12 @@ long readInt() {
 
 string readString() {
     fgets(buf, BUF_SIZE, stdin);
-    if(buf[BUF_SIZE - 2] == '\n') {
-        buf[BUF_SIZE - 2] = '\0';
+    size_t len = strlen(buf);
+    if(buf[len - 1] == '\n') {
+        buf[len - 1] = '\0';
+        len -= 1;
     }
 
-    size_t len = strlen(buf);
     string read = (string) malloc(len + 1);
     memcpy(read, buf, len + 1);
     return read;
@@ -41,12 +42,11 @@ string __strcat(const string s1, const string s2) {
     size_t s1_len = strlen(s1);
     size_t s2_len = strlen(s2);
 
-    size_t buf_len = s1_len + s2_len + 1;
-    string buf = (string) malloc(buf_len);
+    size_t str_len = s1_len + s2_len + 1;
+    string str = (string) malloc(str_len);
 
-    memcpy(buf, s1, s1_len);
-    memcpy(buf + s1_len, s2, s2_len);
-    buf[buf_len - 1] = 0;
+    memcpy(str, s1, s1_len);
+    memcpy(str + s1_len, s2, s2_len + 1);
 
-    return buf;
+    return str;
 }
