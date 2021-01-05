@@ -355,6 +355,7 @@ fn compile_stmt(
             let while_label_after = format!("while_{}_after", labels.len());
             labels.extend(vec![while_label_cond.clone(), while_label_after.clone()]);
 
+            output.text.push(format!("{}:", &while_label_cond));
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_TMP, vstack, output);
             output.text.push(format!("{} {}, {}", OP_CMP, REG_TMP, 0));
@@ -362,7 +363,6 @@ fn compile_stmt(
                 .text
                 .push(format!("{} {}", JMP_EQ, while_label_after));
 
-            output.text.push(format!("{}:", &while_label_cond));
             compile_block(&vec![*stmt_node.clone()], vstack, labels, output);
             output
                 .text
