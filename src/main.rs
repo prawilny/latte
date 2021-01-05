@@ -18,7 +18,14 @@ fn main() {
     let source = match args.len() {
         2 => {
             let path = Path::new(&args[1]);
-            fs::read_to_string(path).unwrap()
+            match fs::read_to_string(path) {
+                Ok(content) => content,
+                Err(_) => {
+                    eprintln!("ERROR");
+                    eprintln!("failed to read input file {:?}", path);
+                    process::exit(5);
+                }
+            }
         }
         _ => {
             println!("usage: {} FILEPATH", &args[0]);
