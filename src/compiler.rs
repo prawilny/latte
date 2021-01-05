@@ -153,6 +153,13 @@ fn vstack_rename_last(vstack: &mut VStack, arg_names: &Vec<ast::Ident>) {
     }
 }
 
+// TODO: hack, polega na 8-bajtowości zmiennych
+fn vstack_align(vstack: &mut VStack, output: &mut Output, args_count: usize) {
+    if vstack.0.len() + args_count % 2 == 1 {
+        push_wrapper(REG_STACK, Some(".alignment"), vstack, output);
+    }
+}
+
 fn directives(fdefs: &Vec<ast::Node<ast::FunDef>>, output: &mut Output) {
     output.directives.push(".intel_syntax".to_string());
 
@@ -441,6 +448,7 @@ fn compile_expr(
                 compile_expr(&arg_expr_nodes[i], vstack, labels, output);
                 pop_wrapper(ARG_REGS[i], vstack, output);
             }
+            vstack_align(vstack, output, args_count);
             if args_count > 6 {
                 for i in (6..args_count).rev() {
                     compile_expr(&arg_expr_nodes[i], vstack, labels, output);
