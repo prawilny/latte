@@ -5,7 +5,7 @@ use crate::latte_y::IntType;
 
 static MEM_VAR_SIZE: &str = "qword";
 // TODO: statyczne sprawdzenie, czy sizeof(IntType) == 8
-static INT_SIZE: usize = std::mem::size_of::<IntType>();
+static VAR_SIZE: usize = std::mem::size_of::<IntType>();
 
 static FN_STRCAT: &str = "__strcat";
 
@@ -57,7 +57,6 @@ static JMP_ALWAYS: &str = "jmp";
 
 // TODO: kolejność argumentów na stosie (wkładanie, ściąganie, vstack_rename_last)
 
-// TODO: poprawność vstack_get_offset
 
 // TODO: uwaga na stringi, bo sizeof(char) != sizeof(intXX)
 // TODO: alignment: stos i stringi
@@ -66,6 +65,7 @@ static JMP_ALWAYS: &str = "jmp";
 // TODO: testy zagniezdzonych funkcji z wieloma argumentami i zmienne w nich
 
 // TODO: przejrzenie kodu
+// TODO: sprawdzenie funkcji vstack_...
 
 // TODO: leniwość AND i OR
 
@@ -104,9 +104,9 @@ fn pop_wrapper(target: &str, vstack: &mut VStack, output: &mut Output) {
 }
 
 fn vstack_get_offset(vstack: &VStack, ident: &ast::Ident) -> usize {
-    match vstack.0.iter().rev().position(|i| i == ident) {
+    match vstack.0.iter().position(|i| i == ident) {
         None => error("use of undeclared variable"),
-        Some(n) => n * INT_SIZE,
+        Some(n) => (n + 1) * VAR_SIZE,
     }
 }
 
@@ -127,7 +127,7 @@ fn vstack_exit_scope(vstack: &mut VStack, output: &mut Output) {
             "{} {}, {}",
             OP_ADD,
             REG_STACK,
-            (h_before - h_after) * INT_SIZE
+            (h_before - h_after) * VAR_SIZE
         ));
     }
 }
@@ -139,7 +139,7 @@ fn vstack_exit_fn(vstack: &mut VStack, output: &mut Output) {
             "{} {}, {}",
             OP_ADD,
             REG_STACK,
-            locals * INT_SIZE,
+            locals * VAR_SIZE,
         ));
     }
 }
@@ -284,6 +284,7 @@ fn compile_stmt(
             output.text.push(format!("{}", OP_RET));
         }
         ast::Stmt::Decl(_, item_nodes) => {
+            // TODO: debugging dublowania zmiennej
             for item_node in item_nodes {
                 match item_node.data() {
                     ast::Item::NoInit(ident_node) => {
@@ -428,7 +429,7 @@ fn compile_expr(
             output
                 .text
                 .push(format!("{} {}", OP_SETCC_NEQ, REG_TMP_BYTE));
-            push_wrapper(REG_TMP_BYTE, None, vstack, output);
+            push_wrapper(REG_TMP, None, vstack, output);
         }
         ast::Expr::App(fname_node, arg_expr_nodes) => {
             let fname = fname_node.data();
