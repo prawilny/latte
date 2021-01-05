@@ -21,9 +21,7 @@ static REG_STACK: &str = "rsp";
 
 static REG_QUOTIENT: &str = "rax";
 static REG_REMAINDER: &str = "rdx";
-
-static REG_DIVIDEND_HIGH: &str = "rdx";
-static REG_DIVIDEND_LOW: &str = "rax";
+static REG_DIVIDEND: &str = "rax";
 
 static ARG_REGS: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
 
@@ -42,6 +40,7 @@ static OP_CALL: &str = "call";
 static OP_CMP: &str = "cmp";
 static OP_RET: &str = "ret";
 static OP_MOV_CONSTANT: &str = "movabs";
+static OP_SIGN_EXTEND_RAX: &str = "cqo";
 
 static OP_SETCC_EQ: &str = "sete";
 static OP_SETCC_NEQ: &str = "setne";
@@ -109,7 +108,7 @@ fn pop_wrapper(target: &str, vstack: &mut VStack, output: &mut Output) {
 
 fn vstack_get_offset(vstack: &VStack, ident: &ast::Ident) -> usize {
     match vstack.0.iter().rposition(|i| i == ident) {
-        None => error("use of undeclared variable"),
+        None => error(&format!("use of undeclared variable {}", ident)),
         Some(n) => (n + 1) * VAR_SIZE,
     }
 }
@@ -153,7 +152,8 @@ fn vstack_rename_last(vstack: &mut VStack, arg_names: &Vec<ast::Ident>) {
 
 // TODO: hack, polega na 8-bajtowości zmiennych
 fn vstack_align(vstack: &mut VStack, output: &mut Output, args_count: usize) {
-    if vstack.0.len() + args_count % 2 == 1 {
+    let stack_args_count = std::cmp::max(0, args_count - 6);
+    if vstack.0.len() + stack_args_count % 2 == 1 {
         push_wrapper(REG_STACK, Some(".alignment"), vstack, output);
     }
 }
@@ -176,7 +176,7 @@ pub fn compile(fdefs: &Vec<ast::Node<ast::FunDef>>) {
     labels.insert(EMPTY_STRING_LABEL.to_string());
     output
         .rodata
-        .push(format!("{}: .asciz {}", EMPTY_STRING_LABEL, ""));
+        .push(format!("{}: .asciz \"\"", EMPTY_STRING_LABEL));
 
     for fdef in fdefs {
         compile_fn(fdef, &mut labels, &mut output);
@@ -513,12 +513,9 @@ fn compile_expr(
             compile_expr(&expr1, vstack, labels, output);
             compile_expr(&expr2, vstack, labels, output);
             pop_wrapper(REG_OP_AUX, vstack, output);
-            pop_wrapper(REG_DIVIDEND_LOW, vstack, output);
+            pop_wrapper(REG_DIVIDEND, vstack, output);
 
-            output.text.push(format!(
-                "{} {}, {}",
-                OP_XOR, REG_DIVIDEND_HIGH, REG_DIVIDEND_HIGH
-            ));
+            output.text.push(OP_SIGN_EXTEND_RAX.to_string());
             output.text.push(format!("{} {}", OP_IDIV, REG_OP_AUX));
 
             let result_reg = match expr.data() {
