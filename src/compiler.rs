@@ -71,6 +71,8 @@ static JMP_ALWAYS: &str = "jmp";
 
 // TODO: czy może być wiele etykiet jednej instrukcji?
 
+// TODO: oznaczenie workaroundu na if/ifelse/while i deklaracje
+
 type VStack = (Vec<ast::Ident>, Vec<usize>);
 type Label = String;
 
@@ -113,16 +115,11 @@ fn vstack_enter_scope(vstack: &mut VStack) {
 }
 
 fn vstack_exit_scope(vstack: &mut VStack, output: &mut Output) {
-    eprintln!("exit_scope {:?} {:?}", vstack.0, vstack.1);
-
     let h_before = vstack.0.len();
     let h_after = match vstack.1.pop() {
         None => error("too many scope exits"),
         Some(h) => h,
     };
-
-    eprintln!("before {}", h_before);
-    eprintln!("after {}", h_after);
 
     vstack.0.truncate(h_after);
     if h_after != h_before {
@@ -131,6 +128,18 @@ fn vstack_exit_scope(vstack: &mut VStack, output: &mut Output) {
             OP_ADD,
             REG_STACK,
             (h_before - h_after) * INT_SIZE
+        ));
+    }
+}
+
+fn vstack_exit_fn(vstack: &mut VStack, output: &mut Output) {
+    let locals = vstack.0.len();
+    if locals > 0 {
+        output.text.push(format!(
+            "{} {}, {}",
+            OP_ADD,
+            REG_STACK,
+            locals * INT_SIZE,
         ));
     }
 }
@@ -186,7 +195,9 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
         .map(|arg_node| arg_node.data().1.data().clone())
         .collect();
     let arg_names_count = arg_names.len();
-    output.text.push(format!("{}:", ident_node.data()));
+
+    let label_fn = ident_node.data();
+    output.text.push(format!("{}:", label_fn));
 
     output.text.push(format!("{} {}", OP_PUSH, REG_BASE));
     output
@@ -202,9 +213,13 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
 
     compile_block(block_node.data(), &mut vstack, labels, output);
 
+    // epilog tylko jeśli nie było returna żadnego
     output
         .text
-        .push(format!("{} {}, [{}]", OP_MOV, REG_BASE, REG_BASE));
+        .push(format!("{} {}, {}", OP_MOV, REG_STACK, REG_BASE));
+    output
+        .text
+        .push(format!("{} {}", OP_POP, REG_BASE));
     output.text.push(format!("{}", OP_RET));
 }
 
@@ -229,7 +244,6 @@ fn compile_stmt(
     labels: &mut HashSet<Label>,
     output: &mut Output,
 ) {
-    eprintln!("vstack: {:?} {:?}", vstack.0, vstack.1);
     match stmt.data() {
         ast::Stmt::Empty => (),
         ast::Stmt::Expr(expr_node) => compile_expr(expr_node, vstack, labels, output),
@@ -242,14 +256,32 @@ fn compile_stmt(
                 _ => unreachable!(),
             };
             output.text.push(format!(
-                "{} {} [{} - {}]",
+                "{} {} ptr [{} - {}]",
                 op_code, MEM_VAR_SIZE, REG_BASE, offset
             ));
         }
-        ast::Stmt::VRet => (),
+        ast::Stmt::VRet => {
+            vstack_exit_fn(vstack, output);
+            output
+                .text
+                .push(format!("{} {}, {}", OP_MOV, REG_STACK, REG_BASE));
+            output
+                .text
+                .push(format!("{} {}", OP_POP, REG_BASE));
+            output.text.push(format!("{}", OP_RET));
+        },
         ast::Stmt::Ret(expr_node) => {
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_FN_RETVAL, vstack, output);
+
+            vstack_exit_fn(vstack, output);
+            output
+                .text
+                .push(format!("{} {}, {}", OP_MOV, REG_STACK, REG_BASE));
+            output
+                .text
+                .push(format!("{} {}", OP_POP, REG_BASE));
+            output.text.push(format!("{}", OP_RET));
         }
         ast::Stmt::Decl(_, item_nodes) => {
             for item_node in item_nodes {
@@ -269,7 +301,7 @@ fn compile_stmt(
 
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(
-                &format!("{} [{} - {}]", MEM_VAR_SIZE, REG_BASE, offset),
+                &format!("{} ptr [{} - {}]", MEM_VAR_SIZE, REG_BASE, offset),
                 vstack,
                 output,
             );
@@ -280,13 +312,9 @@ fn compile_stmt(
 
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_OP_AUX, vstack, output);
-            output
-                .text
-                .push(format!("{} {}, {}", OP_XOR, REG_TMP, REG_TMP));
-
-            output.text.push(format!("{} {}, {}", OP_CMP, REG_TMP, 0));
+            output.text.push(format!("{} {}, {}", OP_CMP, REG_OP_AUX, 0));
             output.text.push(format!("{} {}", JMP_EQ, if_label_after));
-            compile_block(&vec![*stmt_node.clone()], vstack, labels, output); // workaround na deklaracje w ifie
+            compile_block(&vec![*stmt_node.clone()], vstack, labels, output);
             output.text.push(format!("{}:", if_label_after));
         }
         ast::Stmt::IfElse(expr_node, true_stmt_node, false_stmt_node) => {
@@ -377,15 +405,10 @@ fn compile_expr(
         ast::Expr::Var(ident_node) => {
             let offset = vstack_get_offset(vstack, ident_node.data());
             output.text.push(format!(
-                "{} {}, {} [{} - {}]",
-                OP_MOV, REG_OP_AUX, MEM_VAR_SIZE, REG_BASE, offset
+                "{} {}, {} ptr [{} - {}]",
+                OP_MOV, REG_TMP, MEM_VAR_SIZE, REG_BASE, offset
             ));
-            push_wrapper(
-                &format!("{} [{}]", MEM_VAR_SIZE, REG_OP_AUX),
-                None,
-                vstack,
-                output,
-            );
+            push_wrapper(REG_TMP, None, vstack, output);
         }
         ast::Expr::Neg(expr_node) => {
             compile_expr(expr_node, vstack, labels, output);
