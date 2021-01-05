@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 
@@ -20,9 +21,9 @@ void printString(const string s) {
     printf("%s\n", s);
 }
 
-int readInt() {
-    int read;
-    scanf("%d", &read);
+int64_t readInt(    ) {
+    int64_t read;
+    scanf("%" SCNd64, &read);
     return read;
 }
 
