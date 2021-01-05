@@ -104,7 +104,7 @@ fn pop_wrapper(target: &str, vstack: &mut VStack, output: &mut Output) {
 }
 
 fn vstack_get_offset(vstack: &VStack, ident: &ast::Ident) -> usize {
-    match vstack.0.iter().position(|i| i == ident) {
+    match vstack.0.iter().rposition(|i| i == ident) {
         None => error("use of undeclared variable"),
         Some(n) => (n + 1) * VAR_SIZE,
     }
