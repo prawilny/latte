@@ -11,7 +11,7 @@ do
     FILE_PATH_STEM=${FILE_PATH%.lat}
     $COMPILER $FILE_PATH_STEM.lat
 
-    $FILE_PATH_STEM > $FILE_PATH_STEM.result
+    $BASEDIR/$FILE_PATH_STEM > $FILE_PATH_STEM.result
 
     echo diff $FILE_PATH_STEM
     diff $FILE_PATH_STEM.{output,result}
