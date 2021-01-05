@@ -29,8 +29,6 @@ static ARG_REGS: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
 
 static OP_MOV: &str = "mov";
 static OP_XOR: &str = "xor";
-static OP_OR: &str = "or";
-static OP_AND: &str = "and";
 static OP_SUB: &str = "sub";
 static OP_ADD: &str = "add";
 static OP_INC: &str = "inc";
@@ -55,6 +53,9 @@ static OP_SETCC_GEQ: &str = "setge";
 static JMP_EQ: &str = "je";
 static JMP_ALWAYS: &str = "jmp";
 
+static VAL_TRUE: IntType = 1;
+static VAL_FALSE: IntType = 0;
+
 // TODO: kolejność argumentów na stosie (wkładanie, ściąganie, vstack_rename_last)
 
 
@@ -63,6 +64,7 @@ static JMP_ALWAYS: &str = "jmp";
 
 // TODO: testy czytania stringa/inta z klawiatury
 // TODO: testy zagniezdzonych funkcji z wieloma argumentami i zmienne w nich
+// TODO: testy funkcji o 6+ argumentach
 
 // TODO: przejrzenie kodu
 // TODO: sprawdzenie funkcji vstack_...
@@ -70,8 +72,9 @@ static JMP_ALWAYS: &str = "jmp";
 // TODO: leniwość AND i OR
 
 // TODO: czy może być wiele etykiet jednej instrukcji?
-
 // TODO: oznaczenie workaroundu na if/ifelse/while i deklaracje
+
+// TODO: mniej używać REG_TMP
 
 type VStack = (Vec<ast::Ident>, Vec<usize>);
 type Label = String;
@@ -213,7 +216,7 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
 
     compile_block(block_node.data(), &mut vstack, labels, output);
 
-    // epilog tylko jeśli nie było returna żadnego
+    // TODO: epilog tylko jeśli nie było returna żadnego
     output
         .text
         .push(format!("{} {}, {}", OP_MOV, REG_STACK, REG_BASE));
@@ -313,7 +316,7 @@ fn compile_stmt(
 
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_OP_AUX, vstack, output);
-            output.text.push(format!("{} {}, {}", OP_CMP, REG_OP_AUX, 0));
+            output.text.push(format!("{} {}, {}", OP_CMP, REG_OP_AUX, VAL_FALSE));
             output.text.push(format!("{} {}", JMP_EQ, if_label_after));
             compile_block(&vec![*stmt_node.clone()], vstack, labels, output);
             output.text.push(format!("{}:", if_label_after));
@@ -330,7 +333,7 @@ fn compile_stmt(
 
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_TMP, vstack, output);
-            output.text.push(format!("{} {}, {}", OP_CMP, REG_TMP, 0));
+            output.text.push(format!("{} {}, {}", OP_CMP, REG_TMP, VAL_FALSE));
             output.text.push(format!("{} {}", JMP_EQ, cond_label_false));
             output
                 .text
@@ -358,7 +361,7 @@ fn compile_stmt(
             output.text.push(format!("{}:", &while_label_cond));
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_TMP, vstack, output);
-            output.text.push(format!("{} {}, {}", OP_CMP, REG_TMP, 0));
+            output.text.push(format!("{} {}, {}", OP_CMP, REG_TMP, VAL_FALSE));
             output
                 .text
                 .push(format!("{} {}", JMP_EQ, while_label_after));
@@ -389,7 +392,7 @@ fn compile_expr(
                 "{} {}, {}",
                 OP_MOV,
                 REG_TMP,
-                if *b { 1 } else { 0 }
+                if *b { VAL_TRUE } else { VAL_FALSE } // TOOD: stałe na boole
             ));
             push_wrapper(REG_TMP, None, vstack, output);
         }
@@ -425,10 +428,10 @@ fn compile_expr(
                 .push(format!("{} {}, {}", OP_XOR, REG_TMP, REG_TMP));
             output
                 .text
-                .push(format!("{} {}, {}", OP_CMP, REG_OP_AUX, 0));
+                .push(format!("{} {}, {}", OP_CMP, REG_OP_AUX, VAL_FALSE));
             output
                 .text
-                .push(format!("{} {}", OP_SETCC_NEQ, REG_TMP_BYTE));
+                .push(format!("{} {}", OP_SETCC_EQ, REG_TMP_BYTE));
             push_wrapper(REG_TMP, None, vstack, output);
         }
         ast::Expr::App(fname_node, arg_expr_nodes) => {
@@ -495,21 +498,30 @@ fn compile_expr(
             };
             push_wrapper(result_reg, None, vstack, output);
         }
-        ast::Expr::And(expr1, expr2) | ast::Expr::Or(expr1, expr2) => {
-            compile_expr(&expr1, vstack, labels, output);
-            compile_expr(&expr2, vstack, labels, output);
-            pop_wrapper(REG_OP_AUX, vstack, output);
-            pop_wrapper(REG_OP_MAIN, vstack, output);
+        ast::Expr::And(expr1, expr2)
+        | ast::Expr::Or(expr1, expr2) => {
+            // dla ast::Expr::Or na stosie [false, expr2] lub [true]
+            // dla ast::Expr::And na stosie [true, expr2] lub [false]
 
-            let opcode = match expr.data() {
-                ast::Expr::And(_, _) => OP_AND,
-                ast::Expr::Or(_, _) => OP_OR,
+            let skipping_value = match expr.data(){
+                ast::Expr::And(_, _) => VAL_FALSE,
+                ast::Expr::Or(_, _) => VAL_TRUE,
                 _ => unreachable!(),
             };
+
+            let or_and_label_after = format!("or_and_{}_after", labels.len());
+            labels.insert(or_and_label_after.clone());
+
+            compile_expr(&expr1, vstack, labels, output);
             output
                 .text
-                .push(format!("{} {}, {}", opcode, REG_OP_MAIN, REG_OP_AUX));
-            push_wrapper(REG_OP_MAIN, None, vstack, output);
+                .push(format!("{} {}, {} ptr [{}]", OP_MOV, REG_OP_MAIN, MEM_VAR_SIZE, REG_STACK));
+
+            output.text.push(format!("{} {}, {}", OP_CMP, REG_OP_MAIN, skipping_value));
+            output.text.push(format!("{} {}", JMP_EQ, or_and_label_after));
+
+            compile_expr(&expr2, vstack, labels, output);
+            output.text.push(format!("{}:", or_and_label_after));
         }
         ast::Expr::EQ(expr1, expr2)
         | ast::Expr::NEQ(expr1, expr2)
