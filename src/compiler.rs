@@ -56,8 +56,9 @@ static JMP_ALWAYS: &str = "jmp";
 static VAL_TRUE: IntType = 1;
 static VAL_FALSE: IntType = 0;
 
-// TODO: kolejność argumentów na stosie (wkładanie, ściąganie, vstack_rename_last)
+static EMPTY_STRING_LABEL: &str = "__blank";
 
+// TODO: kolejność argumentów na stosie (wkładanie, ściąganie, vstack_rename_last)
 
 // TODO: uwaga na stringi, bo sizeof(char) != sizeof(intXX)
 // TODO: alignment: stos i stringi
@@ -138,12 +139,9 @@ fn vstack_exit_scope(vstack: &mut VStack, output: &mut Output) {
 fn vstack_exit_fn(vstack: &mut VStack, output: &mut Output) {
     let locals = vstack.0.len();
     if locals > 0 {
-        output.text.push(format!(
-            "{} {}, {}",
-            OP_ADD,
-            REG_STACK,
-            locals * VAR_SIZE,
-        ));
+        output
+            .text
+            .push(format!("{} {}, {}", OP_ADD, REG_STACK, locals * VAR_SIZE));
     }
 }
 
@@ -174,6 +172,11 @@ pub fn compile(fdefs: &Vec<ast::Node<ast::FunDef>>) {
     let mut labels = HashSet::new();
 
     directives(&fdefs, &mut output);
+
+    labels.insert(EMPTY_STRING_LABEL.to_string());
+    output
+        .rodata
+        .push(format!("{}: .asciz {}", EMPTY_STRING_LABEL, ""));
 
     for fdef in fdefs {
         compile_fn(fdef, &mut labels, &mut output);
@@ -227,9 +230,7 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
     output
         .text
         .push(format!("{} {}, {}", OP_MOV, REG_STACK, REG_BASE));
-    output
-        .text
-        .push(format!("{} {}", OP_POP, REG_BASE));
+    output.text.push(format!("{} {}", OP_POP, REG_BASE));
     output.text.push(format!("{}", OP_RET));
 }
 
@@ -275,11 +276,9 @@ fn compile_stmt(
             output
                 .text
                 .push(format!("{} {}, {}", OP_MOV, REG_STACK, REG_BASE));
-            output
-                .text
-                .push(format!("{} {}", OP_POP, REG_BASE));
+            output.text.push(format!("{} {}", OP_POP, REG_BASE));
             output.text.push(format!("{}", OP_RET));
-        },
+        }
         ast::Stmt::Ret(expr_node) => {
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_FN_RETVAL, vstack, output);
@@ -288,17 +287,34 @@ fn compile_stmt(
             output
                 .text
                 .push(format!("{} {}, {}", OP_MOV, REG_STACK, REG_BASE));
-            output
-                .text
-                .push(format!("{} {}", OP_POP, REG_BASE));
+            output.text.push(format!("{} {}", OP_POP, REG_BASE));
             output.text.push(format!("{}", OP_RET));
         }
-        ast::Stmt::Decl(_, item_nodes) => {
-            // TODO: debugging dublowania zmiennej
+        ast::Stmt::Decl(prim_node, item_nodes) => {
             for item_node in item_nodes {
                 match item_node.data() {
                     ast::Item::NoInit(ident_node) => {
-                        push_wrapper(REG_TMP, Some(&ident_node.data().clone()), vstack, output);
+                        match prim_node.data() {
+                            ast::Prim::Int | ast::Prim::Bool => {
+                                let default_value = 0; // VAL_FALSE == 0 == DEFAULT_INT
+                                output
+                                    .text
+                                    .push(format!("{} {}, {}", OP_MOV, REG_OP_MAIN, default_value));
+                            }
+                            ast::Prim::Str => {
+                                output.text.push(format!(
+                                    "{} {}, offset {}",
+                                    OP_MOV_CONSTANT, REG_OP_MAIN, EMPTY_STRING_LABEL
+                                ));
+                            }
+                            ast::Prim::Void => unreachable!(),
+                        }
+                        push_wrapper(
+                            REG_OP_MAIN,
+                            Some(&ident_node.data().clone()),
+                            vstack,
+                            output,
+                        );
                     }
                     ast::Item::Init(ident_node, expr_node) => {
                         compile_expr(expr_node, vstack, labels, output);
@@ -323,7 +339,9 @@ fn compile_stmt(
 
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_OP_AUX, vstack, output);
-            output.text.push(format!("{} {}, {}", OP_CMP, REG_OP_AUX, VAL_FALSE));
+            output
+                .text
+                .push(format!("{} {}, {}", OP_CMP, REG_OP_AUX, VAL_FALSE));
             output.text.push(format!("{} {}", JMP_EQ, if_label_after));
             compile_block(&vec![*stmt_node.clone()], vstack, labels, output);
             output.text.push(format!("{}:", if_label_after));
@@ -340,7 +358,9 @@ fn compile_stmt(
 
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_TMP, vstack, output);
-            output.text.push(format!("{} {}, {}", OP_CMP, REG_TMP, VAL_FALSE));
+            output
+                .text
+                .push(format!("{} {}, {}", OP_CMP, REG_TMP, VAL_FALSE));
             output.text.push(format!("{} {}", JMP_EQ, cond_label_false));
             output
                 .text
@@ -368,7 +388,9 @@ fn compile_stmt(
             output.text.push(format!("{}:", &while_label_cond));
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_TMP, vstack, output);
-            output.text.push(format!("{} {}, {}", OP_CMP, REG_TMP, VAL_FALSE));
+            output
+                .text
+                .push(format!("{} {}, {}", OP_CMP, REG_TMP, VAL_FALSE));
             output
                 .text
                 .push(format!("{} {}", JMP_EQ, while_label_after));
@@ -406,7 +428,7 @@ fn compile_expr(
         ast::Expr::Str(s) => {
             let label = format!("str_{}", labels.len() + 1);
             labels.insert(label.clone());
-            output.rodata.push(format!("{}: .asciz {}", label, s,));
+            output.rodata.push(format!("{}: .asciz {}", label, s));
             output.text.push(format!(
                 "{} {}, offset {}",
                 OP_MOV_CONSTANT, REG_OP_MAIN, label
@@ -506,12 +528,11 @@ fn compile_expr(
             };
             push_wrapper(result_reg, None, vstack, output);
         }
-        ast::Expr::And(expr1, expr2)
-        | ast::Expr::Or(expr1, expr2) => {
+        ast::Expr::And(expr1, expr2) | ast::Expr::Or(expr1, expr2) => {
             // dla ast::Expr::Or na stosie [false, expr2] lub [true]
             // dla ast::Expr::And na stosie [true, expr2] lub [false]
 
-            let skipping_value = match expr.data(){
+            let skipping_value = match expr.data() {
                 ast::Expr::And(_, _) => VAL_FALSE,
                 ast::Expr::Or(_, _) => VAL_TRUE,
                 _ => unreachable!(),
@@ -521,12 +542,17 @@ fn compile_expr(
             labels.insert(or_and_label_after.clone());
 
             compile_expr(&expr1, vstack, labels, output);
+            output.text.push(format!(
+                "{} {}, {} ptr [{}]",
+                OP_MOV, REG_OP_MAIN, MEM_VAR_SIZE, REG_STACK
+            ));
+
             output
                 .text
-                .push(format!("{} {}, {} ptr [{}]", OP_MOV, REG_OP_MAIN, MEM_VAR_SIZE, REG_STACK));
-
-            output.text.push(format!("{} {}, {}", OP_CMP, REG_OP_MAIN, skipping_value));
-            output.text.push(format!("{} {}", JMP_EQ, or_and_label_after));
+                .push(format!("{} {}, {}", OP_CMP, REG_OP_MAIN, skipping_value));
+            output
+                .text
+                .push(format!("{} {}", JMP_EQ, or_and_label_after));
 
             compile_expr(&expr2, vstack, labels, output);
             output.text.push(format!("{}:", or_and_label_after));
