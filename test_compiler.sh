@@ -13,5 +13,6 @@ do
 
     $FILE_PATH_STEM > $FILE_PATH_STEM.result
 
+    echo diff $FILE_PATH_STEM
     diff $FILE_PATH_STEM.{output,result}
 done
