@@ -9,15 +9,12 @@ BLOB=$1
 for FILE_PATH in $BLOB # good/*.lat
 do
     FILE_PATH_STEM=${FILE_PATH%.lat}
-    if [ -f "$" ]; then
-        INPUT_FILE=$FILE_PATH_STEM.input
-    else
-        INPUT_FILE="/dev/null"
-    fi
+    INPUT_FILE=$FILE_PATH_STEM.input
 
     $COMPILER $FILE_PATH_STEM.lat
 
-    $BASEDIR/$FILE_PATH_STEM < $INPUT_FILE > $FILE_PATH_STEM.result
+    touch $INPUT_FILE
+    cat $INPUT_FILE | $BASEDIR/$FILE_PATH_STEM 1>$FILE_PATH_STEM.result
 
     echo diff $FILE_PATH_STEM
     diff $FILE_PATH_STEM.{output,result}
