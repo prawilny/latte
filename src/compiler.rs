@@ -41,7 +41,7 @@ static OP_CALL: &str = "call";
 static OP_CMP: &str = "cmp";
 static OP_RET: &str = "ret";
 static OP_MOV_CONSTANT: &str = "movabs";
-static OP_SIGN_EXTEND_RAX: &str = "cqo";
+static OP_SIGN_EXTEND_DIVIDEND: &str = "cqo";
 
 static OP_SETCC_EQ: &str = "sete";
 static OP_SETCC_NEQ: &str = "setne";
@@ -439,9 +439,9 @@ fn compile_expr(
             let offset = vstack_get_offset(vstack, ident_node.data());
             output.text.push(format!(
                 "{} {}, {} ptr [{} - {}]",
-                OP_MOV, REG_TMP, MEM_WORD_SIZE, REG_BASE, offset
+                OP_MOV, REG_MAIN, MEM_WORD_SIZE, REG_BASE, offset
             ));
-            push_wrapper(REG_TMP, None, vstack, output);
+            push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::Neg(expr_node) => {
             compile_expr(expr_node, vstack, labels, output);
@@ -525,7 +525,7 @@ fn compile_expr(
             pop_wrapper(REG_AUX, vstack, output);
             pop_wrapper(REG_DIVIDEND, vstack, output);
 
-            output.text.push(OP_SIGN_EXTEND_RAX.to_string());
+            output.text.push(OP_SIGN_EXTEND_DIVIDEND.to_string());
             output.text.push(format!("{} {}", OP_IDIV, REG_AUX));
 
             let result_reg = match expr.data() {
