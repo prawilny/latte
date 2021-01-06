@@ -61,19 +61,8 @@ static EMPTY_STRING_LABEL: &str = "__blank";
 static STACK_ARG_OFFSET: usize = 2 * VAR_SIZE;
 static VSTACK_VAR_OFFSET: usize = VAR_SIZE;
 
-// TODO: przejrzenie kodu
-// TODO: sprawdzenie funkcji vstack_...
-
-// TODO: mniej używać REG_TMP
-// TODO: REG_TMP różny od rax
-
 // TOOD: VStack => Frame(Vec<ast::Ident>, VStack) [dodanie do kontekstu poprzedniej ramki]
-
-// TODO: czyszczenie stosu z wartości tymczasowych itp (stmt::expr i expr::{or,and} głównie)
-// TODO: ? vstack_del_top()
-
 // TODO: deduplikacja stringów
-// TODO: epilog w fn_compile tylko jeśli nie było returna żadnego
 
 type VStack = (Vec<ast::Ident>, Vec<usize>);
 type Label = String;
@@ -536,9 +525,6 @@ fn compile_expr(
             push_wrapper(result_reg, None, vstack, output);
         }
         ast::Expr::And(expr1, expr2) | ast::Expr::Or(expr1, expr2) => {
-            // dla ast::Expr::Or na stosie [false, expr2] lub [true]
-            // dla ast::Expr::And na stosie [true, expr2] lub [false]
-
             let skipping_value = match expr.data() {
                 ast::Expr::And(_, _) => VAL_FALSE,
                 ast::Expr::Or(_, _) => VAL_TRUE,
@@ -561,6 +547,7 @@ fn compile_expr(
                 .text
                 .push(format!("{} {}", JMP_EQ, or_and_label_after));
 
+            vstack_shrink_stack(vstack, output);
             compile_expr(&expr2, vstack, labels, output);
             output.text.push(format!("{}:", or_and_label_after));
         }
