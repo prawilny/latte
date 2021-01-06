@@ -145,10 +145,8 @@ fn vstack_exit_fn(vstack: &mut VStack, output: &mut Output) {
     }
 }
 
-fn vstack_rename_last(vstack: &mut VStack, arg_names: &Vec<ast::Ident>) {
-    for (arg_name, stack_name) in arg_names.iter().zip(vstack.0.iter_mut().rev()) {
-        *stack_name = arg_name.clone();
-    }
+fn vstack_rename_top(vstack: &mut VStack, new_name: ast::Ident) {
+    *vstack.0.last_mut().unwrap() = new_name;
 }
 
 // TODO: czy aby potrzebne
@@ -209,7 +207,7 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
         .iter()
         .map(|arg_node| arg_node.data().1.data().clone())
         .collect();
-    let arg_names_count = arg_names.len();
+    // let arg_names_count = arg_names.len();
 
     let label_fn = ident_node.data();
     output.text.push(format!("{}:", label_fn));
@@ -219,9 +217,9 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
         .text
         .push(format!("{} {}, {}", OP_MOV, REG_BASE, REG_STACK));
 
-    if arg_names_count > 6 {
-        vstack_rename_last(&mut vstack, &arg_names[6..arg_names.len()].to_vec());
-    }
+    // if arg_names_count > 6 {
+    //     vstack_rename_top(&mut vstack, &arg_names[6..arg_names.len()].to_vec());
+    // }
     for i in 0..std::cmp::min(6, arg_nodes.len()) {
         push_wrapper(ARG_REGS[i], Some(&arg_names[i]), &mut vstack, output);
     }
@@ -320,7 +318,7 @@ fn compile_stmt(
                     }
                     ast::Item::Init(ident_node, expr_node) => {
                         compile_expr(expr_node, vstack, labels, output);
-                        vstack_rename_last(vstack, &vec![ident_node.data().clone()]);
+                        vstack_rename_top(vstack, ident_node.data().clone());
                     }
                 };
             }
