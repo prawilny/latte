@@ -57,6 +57,9 @@ static VAL_FALSE: IntType = 0;
 
 static EMPTY_STRING_LABEL: &str = "__blank";
 
+static STACK_ARG_OFFSET: usize = 2 * VAR_SIZE;
+static VSTACK_OFFSET: usize = VAR_SIZE;
+
 // TODO: kolejność argumentów na stosie (wkładanie, ściąganie, vstack_rename_last)
 
 // TODO: uwaga na stringi, bo sizeof(char) != sizeof(intXX)
@@ -80,9 +83,10 @@ static EMPTY_STRING_LABEL: &str = "__blank";
 
 // TODO: test runtime::error()
 
+// TOOD: VStack => Frame(Vec<ast::Ident>, VStack) [dodanie do kontekstu poprzedniej ramki]
+
 type VStack = (Vec<ast::Ident>, Vec<usize>);
 type Label = String;
-type Frame = (Vec<ast::Ident>, VStack);
 
 #[derive(Default)]
 struct Output {
@@ -114,7 +118,7 @@ fn pop_wrapper(target: &str, vstack: &mut VStack, output: &mut Output) {
 fn vstack_get_offset(vstack: &VStack, ident: &ast::Ident) -> usize {
     match vstack.0.iter().rposition(|i| i == ident) {
         None => error(&format!("use of undeclared variable {}", ident)),
-        Some(n) => (n + 1) * VAR_SIZE,
+        Some(n) => n * VAR_SIZE + VSTACK_OFFSET,
     }
 }
 
@@ -156,7 +160,7 @@ fn vstack_rename_top(vstack: &mut VStack, new_name: ast::Ident) {
 // TODO: czy aby potrzebne
 // // TODO: hack, polega na 8-bajtowości zmiennych
 // fn vstack_align(vstack: &mut VStack, output: &mut Output, args_count: usize) {
-//     let stack_args_count = std::cmp::max(0, args_count - ARG_REGS.len());
+//     let stack_args_count = std::cmp::max(0, args_count - ARG_REGS.len()); // przerobić cmp na if{}else{}
 //     if vstack.0.len() + stack_args_count % 2 == 1 {
 //         push_wrapper(REG_STACK, Some(".alignment"), vstack, output);
 //     }
@@ -211,8 +215,11 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
         .iter()
         .map(|arg_node| arg_node.data().1.data().clone())
         .collect();
-    let arg_names_count = arg_names.len();
-    let stack_args_count = std::cmp::max(0, arg_names_count - ARG_REGS.len());
+    let stack_args_count = if arg_names.len() > ARG_REGS.len() {
+        arg_names.len() - ARG_REGS.len()
+    } else {
+        0
+    };
 
     let label_fn = ident_node.data();
     output.text.push(format!("{}:", label_fn));
@@ -222,13 +229,24 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
         .text
         .push(format!("{} {}, {}", OP_MOV, REG_BASE, REG_STACK));
 
-    for i in 0..std::cmp::min(ARG_REGS.len(), arg_names_count) {
+    for i in 0..std::cmp::min(ARG_REGS.len(), arg_names.len()) {
         push_wrapper(ARG_REGS[i], Some(&arg_names[i]), &mut vstack, output);
+    }
+    for i in 0..stack_args_count {
+        push_wrapper(
+            &format!(
+                "{} ptr [{} + {}]",
+                MEM_VAR_SIZE,
+                REG_BASE,
+                STACK_ARG_OFFSET + i * VAR_SIZE
+            ),
+            Some(&arg_names[ARG_REGS.len() + i]),
+            &mut vstack,
+            output,
+        );
     }
 
     compile_block(block_node.data(), &mut vstack, labels, output);
-
-    // TOOD: zdejmownanie argumentów ze stosu
 
     // TODO: epilog tylko jeśli nie było returna żadnego
     output
@@ -470,7 +488,11 @@ fn compile_expr(
         ast::Expr::App(fname_node, arg_expr_nodes) => {
             let fname = fname_node.data();
             let args_count = arg_expr_nodes.len();
-            let stack_args_count = std::cmp::max(0, args_count - ARG_REGS.len());
+            let stack_args_count = if args_count > ARG_REGS.len() {
+                args_count - ARG_REGS.len()
+            } else {
+                0
+            };
             for i in 0..std::cmp::min(ARG_REGS.len(), args_count) {
                 compile_expr(&arg_expr_nodes[i], vstack, labels, output);
                 pop_wrapper(ARG_REGS[i], vstack, output);
@@ -481,7 +503,12 @@ fn compile_expr(
             }
             output.text.push(format!("{} {}", OP_CALL, fname));
             if stack_args_count > 0 {
-                output.text.push(format!("{} {}, {}", OP_ADD, REG_STACK, VAR_SIZE * stack_args_count));
+                output.text.push(format!(
+                    "{} {}, {}",
+                    OP_ADD,
+                    REG_STACK,
+                    VAR_SIZE * stack_args_count
+                ));
             }
             push_wrapper(REG_FN_RETVAL, None, vstack, output);
         }
