@@ -116,16 +116,6 @@ fn vstack_enter_scope(vstack: &mut VStack) {
     vstack.1.push(vstack.0.len());
 }
 
-// fn vstack_shrink(vstack: &mut VStack, output: &mut Output, final_size: usize) {
-//     let shrunk = vstack.0.len() - final_size;
-//     vstack.0.truncate(final_size);
-//     if shrunk > 0 {
-//         output
-//             .text
-//             .push(format!("{} {}, {}", OP_ADD, REG_STACK, shrunk * VAR_SIZE));
-//     }
-// }
-
 fn vstack_exit_scope(vstack: &mut VStack, output: &mut Output) {
     let h_before = vstack.0.len();
     let h_after = match vstack.1.pop() {
