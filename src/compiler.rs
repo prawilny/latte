@@ -11,8 +11,8 @@ static FN_STRCAT: &str = "__strcat";
 
 static REG_OP_MAIN: &str = "r11";
 static REG_OP_AUX: &str = "r10";
-static REG_TMP: &str = "rax";
-static REG_TMP_BYTE: &str = "al";
+static REG_TMP: &str = "rcx";
+static REG_TMP_BYTE: &str = "cl";
 
 static REG_FN_RETVAL: &str = "rax";
 
@@ -75,6 +75,7 @@ static EMPTY_STRING_LABEL: &str = "__blank";
 // TODO: oznaczenie workaroundu na if/ifelse/while i deklaracje
 
 // TODO: mniej używać REG_TMP
+// TODO: REG_TMP różny od rax
 
 type VStack = (Vec<ast::Ident>, Vec<usize>);
 type Label = String;
