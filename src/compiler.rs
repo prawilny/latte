@@ -5,7 +5,7 @@ use crate::latte_y::IntType;
 
 sa::assert_eq_size!(usize, i64, IntType);
 
-static MEM_VAR_SIZE: &str = "qword";
+static MEM_WORD_SIZE: &str = "qword";
 static VAR_SIZE: usize = std::mem::size_of::<IntType>();
 
 static FN_STRCAT: &str = "__strcat";
@@ -125,26 +125,30 @@ fn vstack_exit_scope(vstack: &mut VStack, output: &mut Output) {
 
     vstack.0.truncate(h_after);
     if h_after != h_before {
-        output.text.push(format!(
-            "{} {}, {}",
-            OP_ADD,
-            REG_STACK,
-            (h_before - h_after) * VAR_SIZE
-        ));
+        output.text.push(code_shrink_stack(h_before - h_after));
     }
 }
 
 fn vstack_exit_fn(vstack: &mut VStack, output: &mut Output) {
     let locals = vstack.0.len();
     if locals > 0 {
-        output
-            .text
-            .push(format!("{} {}, {}", OP_ADD, REG_STACK, locals * VAR_SIZE));
+        output.text.push(code_shrink_stack(locals));
     }
 }
 
 fn vstack_rename_top(vstack: &mut VStack, new_name: ast::Ident) {
     *vstack.0.last_mut().unwrap() = new_name;
+}
+
+fn code_shrink_stack(n: usize) -> String {
+    format!("{} {}, {}", OP_ADD, REG_STACK, n * VAR_SIZE)
+}
+
+fn code_epilogue() -> String {
+    let s1 = format!("{} {}, {}", OP_MOV, REG_STACK, REG_BASE);
+    let s2 = format!("{} {}", OP_POP, REG_BASE);
+    let s3 = format!("{}", OP_RET);
+    format!("{}\n{}\n{}", s1, s2, s3)
 }
 
 fn directives(fdefs: &Vec<ast::Node<ast::FunDef>>, output: &mut Output) {
@@ -202,9 +206,7 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
         0
     };
 
-    let label_fn = ident_node.data();
-    output.text.push(format!("{}:", label_fn));
-
+    output.text.push(format!("{}:", ident_node.data()));
     output.text.push(format!("{} {}", OP_PUSH, REG_BASE));
     output
         .text
@@ -217,7 +219,7 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
         push_wrapper(
             &format!(
                 "{} ptr [{} + {}]",
-                MEM_VAR_SIZE,
+                MEM_WORD_SIZE,
                 REG_BASE,
                 STACK_ARG_OFFSET + i * VAR_SIZE
             ),
@@ -229,11 +231,7 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
 
     compile_block(block_node.data(), &mut vstack, labels, output);
 
-    output
-        .text
-        .push(format!("{} {}, {}", OP_MOV, REG_STACK, REG_BASE));
-    output.text.push(format!("{} {}", OP_POP, REG_BASE));
-    output.text.push(format!("{}", OP_RET));
+    output.text.push(code_epilogue());
 }
 
 fn compile_block(
@@ -270,27 +268,19 @@ fn compile_stmt(
             };
             output.text.push(format!(
                 "{} {} ptr [{} - {}]",
-                op_code, MEM_VAR_SIZE, REG_BASE, offset
+                op_code, MEM_WORD_SIZE, REG_BASE, offset
             ));
         }
         ast::Stmt::VRet => {
             vstack_exit_fn(vstack, output);
-            output
-                .text
-                .push(format!("{} {}, {}", OP_MOV, REG_STACK, REG_BASE));
-            output.text.push(format!("{} {}", OP_POP, REG_BASE));
-            output.text.push(format!("{}", OP_RET));
+            output.text.push(code_epilogue());
         }
         ast::Stmt::Ret(expr_node) => {
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_FN_RETVAL, vstack, output);
 
             vstack_exit_fn(vstack, output);
-            output
-                .text
-                .push(format!("{} {}, {}", OP_MOV, REG_STACK, REG_BASE));
-            output.text.push(format!("{} {}", OP_POP, REG_BASE));
-            output.text.push(format!("{}", OP_RET));
+            output.text.push(code_epilogue());
         }
         ast::Stmt::Decl(prim_node, item_nodes) => {
             for item_node in item_nodes {
@@ -330,7 +320,7 @@ fn compile_stmt(
 
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(
-                &format!("{} ptr [{} - {}]", MEM_VAR_SIZE, REG_BASE, offset),
+                &format!("{} ptr [{} - {}]", MEM_WORD_SIZE, REG_BASE, offset),
                 vstack,
                 output,
             );
@@ -441,7 +431,7 @@ fn compile_expr(
             let offset = vstack_get_offset(vstack, ident_node.data());
             output.text.push(format!(
                 "{} {}, {} ptr [{} - {}]",
-                OP_MOV, REG_TMP, MEM_VAR_SIZE, REG_BASE, offset
+                OP_MOV, REG_TMP, MEM_WORD_SIZE, REG_BASE, offset
             ));
             push_wrapper(REG_TMP, None, vstack, output);
         }
@@ -553,7 +543,7 @@ fn compile_expr(
             compile_expr(&expr1, vstack, labels, output);
             output.text.push(format!(
                 "{} {}, {} ptr [{}]",
-                OP_MOV, REG_OP_MAIN, MEM_VAR_SIZE, REG_STACK
+                OP_MOV, REG_OP_MAIN, MEM_WORD_SIZE, REG_STACK
             ));
 
             output
