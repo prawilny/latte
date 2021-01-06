@@ -10,8 +10,8 @@ static VAR_SIZE: usize = std::mem::size_of::<IntType>();
 
 static FN_STRCAT: &str = "__strcat";
 
-static REG_OP_MAIN: &str = "r11";
-static REG_OP_AUX: &str = "r10";
+static REG_MAIN: &str = "r11";
+static REG_AUX: &str = "r10";
 static REG_TMP: &str = "r9";
 static REG_TMP_BYTE: &str = "r9b";
 
@@ -299,18 +299,18 @@ fn compile_stmt(
                                 let default_value = 0; // VAL_FALSE == 0 == DEFAULT_INT
                                 output
                                     .text
-                                    .push(format!("{} {}, {}", OP_MOV, REG_OP_MAIN, default_value));
+                                    .push(format!("{} {}, {}", OP_MOV, REG_MAIN, default_value));
                             }
                             ast::Prim::Str => {
                                 output.text.push(format!(
                                     "{} {}, offset {}",
-                                    OP_MOV_CONSTANT, REG_OP_MAIN, EMPTY_STRING_LABEL
+                                    OP_MOV_CONSTANT, REG_MAIN, EMPTY_STRING_LABEL
                                 ));
                             }
                             ast::Prim::Void => unreachable!(),
                         }
                         push_wrapper(
-                            REG_OP_MAIN,
+                            REG_MAIN,
                             Some(&ident_node.data().clone()),
                             vstack,
                             output,
@@ -338,10 +338,10 @@ fn compile_stmt(
             labels.insert(if_label_after.clone());
 
             compile_expr(expr_node, vstack, labels, output);
-            pop_wrapper(REG_OP_AUX, vstack, output);
+            pop_wrapper(REG_MAIN, vstack, output);
             output
                 .text
-                .push(format!("{} {}, {}", OP_CMP, REG_OP_AUX, VAL_FALSE));
+                .push(format!("{} {}, {}", OP_CMP, REG_MAIN, VAL_FALSE));
             output.text.push(format!("{} {}", JMP_EQ, if_label_after));
             compile_block(&vec![*stmt_node.clone()], vstack, labels, output);
             output.text.push(format!("{}:", if_label_after));
@@ -357,10 +357,10 @@ fn compile_stmt(
             ]);
 
             compile_expr(expr_node, vstack, labels, output);
-            pop_wrapper(REG_TMP, vstack, output);
+            pop_wrapper(REG_MAIN, vstack, output);
             output
                 .text
-                .push(format!("{} {}, {}", OP_CMP, REG_TMP, VAL_FALSE));
+                .push(format!("{} {}, {}", OP_CMP, REG_MAIN, VAL_FALSE));
             output.text.push(format!("{} {}", JMP_EQ, cond_label_false));
             output
                 .text
@@ -387,10 +387,10 @@ fn compile_stmt(
 
             output.text.push(format!("{}:", &while_label_cond));
             compile_expr(expr_node, vstack, labels, output);
-            pop_wrapper(REG_TMP, vstack, output);
+            pop_wrapper(REG_MAIN, vstack, output);
             output
                 .text
-                .push(format!("{} {}, {}", OP_CMP, REG_TMP, VAL_FALSE));
+                .push(format!("{} {}, {}", OP_CMP, REG_MAIN, VAL_FALSE));
             output
                 .text
                 .push(format!("{} {}", JMP_EQ, while_label_after));
@@ -413,17 +413,17 @@ fn compile_expr(
 ) {
     match expr.data() {
         ast::Expr::Int(n) => {
-            output.text.push(format!("{} {}, {}", OP_MOV, REG_TMP, n));
-            push_wrapper(REG_TMP, None, vstack, output);
+            output.text.push(format!("{} {}, {}", OP_MOV, REG_MAIN, n));
+            push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::Bool(b) => {
             output.text.push(format!(
                 "{} {}, {}",
                 OP_MOV,
-                REG_TMP,
+                REG_MAIN,
                 if *b { VAL_TRUE } else { VAL_FALSE } // TOOD: stałe na boole
             ));
-            push_wrapper(REG_TMP, None, vstack, output);
+            push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::Str(s) => {
             let label = format!("str_{}", labels.len() + 1);
@@ -431,9 +431,9 @@ fn compile_expr(
             output.rodata.push(format!("{}: .asciz {}", label, s));
             output.text.push(format!(
                 "{} {}, offset {}",
-                OP_MOV_CONSTANT, REG_OP_MAIN, label
+                OP_MOV_CONSTANT, REG_MAIN, label
             ));
-            push_wrapper(REG_OP_MAIN, None, vstack, output);
+            push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::Var(ident_node) => {
             let offset = vstack_get_offset(vstack, ident_node.data());
@@ -445,19 +445,19 @@ fn compile_expr(
         }
         ast::Expr::Neg(expr_node) => {
             compile_expr(expr_node, vstack, labels, output);
-            pop_wrapper(REG_OP_MAIN, vstack, output);
-            output.text.push(format!("{} {}", OP_NEGATION, REG_OP_MAIN));
-            push_wrapper(REG_OP_MAIN, None, vstack, output);
+            pop_wrapper(REG_MAIN, vstack, output);
+            output.text.push(format!("{} {}", OP_NEGATION, REG_MAIN));
+            push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::Not(expr_node) => {
             compile_expr(expr_node, vstack, labels, output);
-            pop_wrapper(REG_OP_AUX, vstack, output);
+            pop_wrapper(REG_AUX, vstack, output);
             output
                 .text
                 .push(format!("{} {}, {}", OP_XOR, REG_TMP, REG_TMP));
             output
                 .text
-                .push(format!("{} {}, {}", OP_CMP, REG_OP_AUX, VAL_FALSE));
+                .push(format!("{} {}, {}", OP_CMP, REG_AUX, VAL_FALSE));
             output
                 .text
                 .push(format!("{} {}", OP_SETCC_EQ, REG_TMP_BYTE));
@@ -504,8 +504,8 @@ fn compile_expr(
         | ast::Expr::Mul(expr1, expr2) => {
             compile_expr(&expr1, vstack, labels, output);
             compile_expr(&expr2, vstack, labels, output);
-            pop_wrapper(REG_OP_AUX, vstack, output);
-            pop_wrapper(REG_OP_MAIN, vstack, output);
+            pop_wrapper(REG_AUX, vstack, output);
+            pop_wrapper(REG_MAIN, vstack, output);
 
             let opcode = match expr.data() {
                 ast::Expr::Add(_, _) => OP_ADD,
@@ -515,18 +515,18 @@ fn compile_expr(
             };
             output
                 .text
-                .push(format!("{} {}, {}", opcode, REG_OP_MAIN, REG_OP_AUX));
+                .push(format!("{} {}, {}", opcode, REG_MAIN, REG_AUX));
 
-            push_wrapper(REG_OP_MAIN, None, vstack, output);
+            push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::Div(expr1, expr2) | ast::Expr::Mod(expr1, expr2) => {
             compile_expr(&expr1, vstack, labels, output);
             compile_expr(&expr2, vstack, labels, output);
-            pop_wrapper(REG_OP_AUX, vstack, output);
+            pop_wrapper(REG_AUX, vstack, output);
             pop_wrapper(REG_DIVIDEND, vstack, output);
 
             output.text.push(OP_SIGN_EXTEND_RAX.to_string());
-            output.text.push(format!("{} {}", OP_IDIV, REG_OP_AUX));
+            output.text.push(format!("{} {}", OP_IDIV, REG_AUX));
 
             let result_reg = match expr.data() {
                 ast::Expr::Div(_, _) => REG_QUOTIENT,
@@ -551,12 +551,12 @@ fn compile_expr(
             compile_expr(&expr1, vstack, labels, output);
             output.text.push(format!(
                 "{} {}, {} ptr [{}]",
-                OP_MOV, REG_OP_MAIN, MEM_WORD_SIZE, REG_STACK
+                OP_MOV, REG_MAIN, MEM_WORD_SIZE, REG_STACK
             ));
 
             output
                 .text
-                .push(format!("{} {}, {}", OP_CMP, REG_OP_MAIN, skipping_value));
+                .push(format!("{} {}, {}", OP_CMP, REG_MAIN, skipping_value));
             output
                 .text
                 .push(format!("{} {}", JMP_EQ, or_and_label_after));
@@ -572,15 +572,15 @@ fn compile_expr(
         | ast::Expr::GEQ(expr1, expr2) => {
             compile_expr(&expr1, vstack, labels, output);
             compile_expr(&expr2, vstack, labels, output);
-            pop_wrapper(REG_OP_AUX, vstack, output);
-            pop_wrapper(REG_OP_MAIN, vstack, output);
+            pop_wrapper(REG_AUX, vstack, output);
+            pop_wrapper(REG_MAIN, vstack, output);
             output
                 .text
                 .push(format!("{} {}, {}", OP_XOR, REG_TMP, REG_TMP));
 
             output
                 .text
-                .push(format!("{} {}, {}", OP_CMP, REG_OP_MAIN, REG_OP_AUX));
+                .push(format!("{} {}, {}", OP_CMP, REG_MAIN, REG_AUX));
             let opcode = match expr.data() {
                 ast::Expr::EQ(_, _) => OP_SETCC_EQ,
                 ast::Expr::NEQ(_, _) => OP_SETCC_NEQ,
