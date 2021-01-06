@@ -161,9 +161,7 @@ pub fn compile(fdefs: &Vec<ast::Node<ast::FunDef>>) {
     directives(&fdefs, &mut output);
 
     labels.insert(EMPTY_STRING_LABEL.to_string());
-    output
-        .rodata
-        .push(format!("{}: .asciz \"\"", EMPTY_STRING_LABEL));
+    output.rodata.push(format!("{}: .asciz \"\"", EMPTY_STRING_LABEL));
 
     for fdef in fdefs {
         compile_fn(fdef, &mut labels, &mut output);
@@ -202,21 +200,14 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
 
     output.text.push(format!("{}:", ident_node.data()));
     output.text.push(format!("{} {}", OP_PUSH, REG_BASE));
-    output
-        .text
-        .push(format!("{} {}, {}", OP_MOV, REG_BASE, REG_STACK));
+    output.text.push(format!("{} {}, {}", OP_MOV, REG_BASE, REG_STACK));
 
     for i in 0..std::cmp::min(ARG_REGS.len(), arg_names.len()) {
         push_wrapper(ARG_REGS[i], Some(&arg_names[i]), &mut vstack, output);
     }
     for i in 0..stack_args_count {
         push_wrapper(
-            &format!(
-                "{} ptr [{} + {}]",
-                MEM_WORD_SIZE,
-                REG_BASE,
-                STACK_ARG_OFFSET + i * VAR_SIZE
-            ),
+            &format!("{} ptr [{} + {}]", MEM_WORD_SIZE, REG_BASE, STACK_ARG_OFFSET + i * VAR_SIZE),
             Some(&arg_names[ARG_REGS.len() + i]),
             &mut vstack,
             output,
@@ -263,10 +254,7 @@ fn compile_stmt(
                 ast::Stmt::Decr(_) => OP_DEC,
                 _ => unreachable!(),
             };
-            output.text.push(format!(
-                "{} {} ptr [{} - {}]",
-                op_code, MEM_WORD_SIZE, REG_BASE, offset
-            ));
+            output.text.push(format!("{} {} ptr [{} - {}]", op_code, MEM_WORD_SIZE, REG_BASE, offset));
         }
         ast::Stmt::VRet => {
             vstack_exit_fn(vstack, output);
@@ -286,24 +274,14 @@ fn compile_stmt(
                         match prim_node.data() {
                             ast::Prim::Int | ast::Prim::Bool => {
                                 let default_value = 0; // VAL_FALSE == 0 == DEFAULT_INT
-                                output
-                                    .text
-                                    .push(format!("{} {}, {}", OP_MOV, REG_MAIN, default_value));
+                                output.text.push(format!("{} {}, {}", OP_MOV, REG_MAIN, default_value));
                             }
                             ast::Prim::Str => {
-                                output.text.push(format!(
-                                    "{} {}, offset {}",
-                                    OP_MOV_CONSTANT, REG_MAIN, EMPTY_STRING_LABEL
-                                ));
+                                output.text.push(format!("{} {}, offset {}", OP_MOV_CONSTANT, REG_MAIN, EMPTY_STRING_LABEL));
                             }
                             ast::Prim::Void => unreachable!(),
                         }
-                        push_wrapper(
-                            REG_MAIN,
-                            Some(&ident_node.data().clone()),
-                            vstack,
-                            output,
-                        );
+                        push_wrapper(REG_MAIN, Some(&ident_node.data().clone()), vstack, output);
                     }
                     ast::Item::Init(ident_node, expr_node) => {
                         compile_expr(expr_node, vstack, labels, output);
@@ -328,9 +306,7 @@ fn compile_stmt(
 
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_MAIN, vstack, output);
-            output
-                .text
-                .push(format!("{} {}, {}", OP_CMP, REG_MAIN, VAL_FALSE));
+            output.text.push(format!("{} {}, {}", OP_CMP, REG_MAIN, VAL_FALSE));
             output.text.push(format!("{} {}", JMP_EQ, if_label_after));
             compile_block(&vec![*stmt_node.clone()], vstack, labels, output);
             output.text.push(format!("{}:", if_label_after));
@@ -347,25 +323,17 @@ fn compile_stmt(
 
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_MAIN, vstack, output);
-            output
-                .text
-                .push(format!("{} {}, {}", OP_CMP, REG_MAIN, VAL_FALSE));
+            output.text.push(format!("{} {}, {}", OP_CMP, REG_MAIN, VAL_FALSE));
             output.text.push(format!("{} {}", JMP_EQ, cond_label_false));
-            output
-                .text
-                .push(format!("{} {}", JMP_ALWAYS, cond_label_true));
+            output.text.push(format!("{} {}", JMP_ALWAYS, cond_label_true));
 
             output.text.push(format!("{}:", &cond_label_true));
             compile_block(&vec![*true_stmt_node.clone()], vstack, labels, output);
-            output
-                .text
-                .push(format!("{} {}", JMP_ALWAYS, cond_label_after));
+            output.text.push(format!("{} {}", JMP_ALWAYS, cond_label_after));
 
             output.text.push(format!("{}:", &cond_label_false));
             compile_block(&vec![*false_stmt_node.clone()], vstack, labels, output);
-            output
-                .text
-                .push(format!("{} {}", JMP_ALWAYS, cond_label_after));
+            output.text.push(format!("{} {}", JMP_ALWAYS, cond_label_after));
 
             output.text.push(format!("{}:", &cond_label_after));
         }
@@ -377,17 +345,11 @@ fn compile_stmt(
             output.text.push(format!("{}:", &while_label_cond));
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_MAIN, vstack, output);
-            output
-                .text
-                .push(format!("{} {}, {}", OP_CMP, REG_MAIN, VAL_FALSE));
-            output
-                .text
-                .push(format!("{} {}", JMP_EQ, while_label_after));
+            output.text.push(format!("{} {}, {}", OP_CMP, REG_MAIN, VAL_FALSE));
+            output.text.push(format!("{} {}", JMP_EQ, while_label_after));
 
             compile_block(&vec![*stmt_node.clone()], vstack, labels, output);
-            output
-                .text
-                .push(format!("{} {}", JMP_ALWAYS, while_label_cond));
+            output.text.push(format!("{} {}", JMP_ALWAYS, while_label_cond));
 
             output.text.push(format!("{}:", &while_label_after));
         }
@@ -406,30 +368,19 @@ fn compile_expr(
             push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::Bool(b) => {
-            output.text.push(format!(
-                "{} {}, {}",
-                OP_MOV,
-                REG_MAIN,
-                if *b { VAL_TRUE } else { VAL_FALSE } // TOOD: stałe na boole
-            ));
+            output.text.push(format!("{} {}, {}", OP_MOV, REG_MAIN, if *b { VAL_TRUE } else { VAL_FALSE }));
             push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::Str(s) => {
             let label = format!("str_{}", labels.len() + 1);
             labels.insert(label.clone());
             output.rodata.push(format!("{}: .asciz {}", label, s));
-            output.text.push(format!(
-                "{} {}, offset {}",
-                OP_MOV_CONSTANT, REG_MAIN, label
-            ));
+            output.text.push(format!("{} {}, offset {}", OP_MOV_CONSTANT, REG_MAIN, label));
             push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::Var(ident_node) => {
             let offset = vstack_get_offset(vstack, ident_node.data());
-            output.text.push(format!(
-                "{} {}, {} ptr [{} - {}]",
-                OP_MOV, REG_MAIN, MEM_WORD_SIZE, REG_BASE, offset
-            ));
+            output.text.push(format!("{} {}, {} ptr [{} - {}]", OP_MOV, REG_MAIN, MEM_WORD_SIZE, REG_BASE, offset));
             push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::Neg(expr_node) => {
@@ -441,15 +392,9 @@ fn compile_expr(
         ast::Expr::Not(expr_node) => {
             compile_expr(expr_node, vstack, labels, output);
             pop_wrapper(REG_AUX, vstack, output);
-            output
-                .text
-                .push(format!("{} {}, {}", OP_XOR, REG_TMP, REG_TMP));
-            output
-                .text
-                .push(format!("{} {}, {}", OP_CMP, REG_AUX, VAL_FALSE));
-            output
-                .text
-                .push(format!("{} {}", OP_SETCC_EQ, REG_TMP_BYTE));
+            output.text.push(format!("{} {}, {}", OP_XOR, REG_TMP, REG_TMP));
+            output.text.push(format!("{} {}, {}", OP_CMP, REG_AUX, VAL_FALSE));
+            output.text.push(format!("{} {}", OP_SETCC_EQ, REG_TMP_BYTE));
             push_wrapper(REG_TMP, None, vstack, output);
         }
         ast::Expr::App(fname_node, arg_expr_nodes) => {
@@ -469,12 +414,7 @@ fn compile_expr(
             }
             output.text.push(format!("{} {}", OP_CALL, fname));
             if stack_args_count > 0 {
-                output.text.push(format!(
-                    "{} {}, {}",
-                    OP_ADD,
-                    REG_STACK,
-                    VAR_SIZE * stack_args_count
-                ));
+                output.text.push(format!("{} {}, {}", OP_ADD, REG_STACK, VAR_SIZE * stack_args_count));
             }
             push_wrapper(REG_FN_RETVAL, None, vstack, output);
         }
@@ -502,9 +442,7 @@ fn compile_expr(
                 ast::Expr::Mul(_, _) => OP_IMUL,
                 _ => unreachable!(),
             };
-            output
-                .text
-                .push(format!("{} {}, {}", opcode, REG_MAIN, REG_AUX));
+            output.text.push(format!("{} {}, {}", opcode, REG_MAIN, REG_AUX));
 
             push_wrapper(REG_MAIN, None, vstack, output);
         }
@@ -535,17 +473,10 @@ fn compile_expr(
             labels.insert(or_and_label_after.clone());
 
             compile_expr(&expr1, vstack, labels, output);
-            output.text.push(format!(
-                "{} {}, {} ptr [{}]",
-                OP_MOV, REG_MAIN, MEM_WORD_SIZE, REG_STACK
-            ));
+            output.text.push(format!("{} {}, {} ptr [{}]", OP_MOV, REG_MAIN, MEM_WORD_SIZE, REG_STACK));
 
-            output
-                .text
-                .push(format!("{} {}, {}", OP_CMP, REG_MAIN, skipping_value));
-            output
-                .text
-                .push(format!("{} {}", JMP_EQ, or_and_label_after));
+            output.text.push(format!("{} {}, {}", OP_CMP, REG_MAIN, skipping_value));
+            output.text.push(format!("{} {}", JMP_EQ, or_and_label_after));
 
             vstack_shrink_stack(vstack, output);
             compile_expr(&expr2, vstack, labels, output);
@@ -561,13 +492,9 @@ fn compile_expr(
             compile_expr(&expr2, vstack, labels, output);
             pop_wrapper(REG_AUX, vstack, output);
             pop_wrapper(REG_MAIN, vstack, output);
-            output
-                .text
-                .push(format!("{} {}, {}", OP_XOR, REG_TMP, REG_TMP));
+            output.text.push(format!("{} {}, {}", OP_XOR, REG_TMP, REG_TMP));
 
-            output
-                .text
-                .push(format!("{} {}, {}", OP_CMP, REG_MAIN, REG_AUX));
+            output.text.push(format!("{} {}, {}", OP_CMP, REG_MAIN, REG_AUX));
             let opcode = match expr.data() {
                 ast::Expr::EQ(_, _) => OP_SETCC_EQ,
                 ast::Expr::NEQ(_, _) => OP_SETCC_NEQ,
