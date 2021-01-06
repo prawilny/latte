@@ -1,3 +1,5 @@
+extern crate static_assertions as sa;
+
 use std::env;
 use std::fs;
 use std::path::Path;

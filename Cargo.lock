@@ -132,6 +132,7 @@ dependencies = [
  "cfgrammar",
  "lrlex",
  "lrpar",
+ "static_assertions",
 ]
 
 [[package]]

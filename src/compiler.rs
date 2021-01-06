@@ -3,8 +3,9 @@ use std::collections::HashSet;
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
 
+sa::assert_eq_size!(usize, u64, IntType);
+
 static MEM_VAR_SIZE: &str = "qword";
-// TODO: statyczne sprawdzenie, czy sizeof(IntType) == 8
 static VAR_SIZE: usize = std::mem::size_of::<IntType>();
 
 static FN_STRCAT: &str = "__strcat";
@@ -60,30 +61,20 @@ static EMPTY_STRING_LABEL: &str = "__blank";
 static STACK_ARG_OFFSET: usize = 2 * VAR_SIZE;
 static VSTACK_OFFSET: usize = VAR_SIZE;
 
-// TODO: kolejność argumentów na stosie (wkładanie, ściąganie, vstack_rename_last)
-
-// TODO: uwaga na stringi, bo sizeof(char) != sizeof(intXX)
-// TODO: alignment: stos i stringi
-
-// TODO: testy czytania stringa/inta z klawiatury
-// TODO: testy zagniezdzonych funkcji z wieloma argumentami i zmienne w nich
-// TODO: testy funkcji o 6+ argumentach
-
 // TODO: przejrzenie kodu
 // TODO: sprawdzenie funkcji vstack_...
 
 // TODO: czyszczenie stosu z wartości tymczasowych itp (stmt::expr i expr::{or,and} głównie)
 // TODO: ? vstack_del_top()
 
-// TODO: czy może być wiele etykiet jednej instrukcji?
-// TODO: oznaczenie workaroundu na if/ifelse/while i deklaracje
-
 // TODO: mniej używać REG_TMP
 // TODO: REG_TMP różny od rax
 
-// TODO: test runtime::error()
-
 // TOOD: VStack => Frame(Vec<ast::Ident>, VStack) [dodanie do kontekstu poprzedniej ramki]
+
+// TODO: deduplikacja stringów
+
+// TODO: epilog w fn_compile tylko jeśli nie było returna żadnego
 
 type VStack = (Vec<ast::Ident>, Vec<usize>);
 type Label = String;
@@ -248,7 +239,6 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
 
     compile_block(block_node.data(), &mut vstack, labels, output);
 
-    // TODO: epilog tylko jeśli nie było returna żadnego
     output
         .text
         .push(format!("{} {}, {}", OP_MOV, REG_STACK, REG_BASE));
