@@ -5,7 +5,7 @@
 #define string char *
 #define BUF_SIZE 256
 
-char buf[BUF_SIZE];
+static char buf[BUF_SIZE];
 
 void error() {
     fprintf(stderr, "runtime error\n");
