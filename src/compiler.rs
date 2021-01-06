@@ -69,7 +69,8 @@ static EMPTY_STRING_LABEL: &str = "__blank";
 // TODO: przejrzenie kodu
 // TODO: sprawdzenie funkcji vstack_...
 
-// TODO: leniwość AND i OR
+// TODO: czyszczenie stosu z wartości tymczasowych itp (stmt::expr i expr::{or,and} głównie)
+// TODO: ? vstack_del_top()
 
 // TODO: czy może być wiele etykiet jednej instrukcji?
 // TODO: oznaczenie workaroundu na if/ifelse/while i deklaracje
@@ -77,8 +78,11 @@ static EMPTY_STRING_LABEL: &str = "__blank";
 // TODO: mniej używać REG_TMP
 // TODO: REG_TMP różny od rax
 
+// TODO: test runtime::error()
+
 type VStack = (Vec<ast::Ident>, Vec<usize>);
 type Label = String;
+type Frame = (Vec<ast::Ident>, VStack);
 
 #[derive(Default)]
 struct Output {
@@ -152,7 +156,7 @@ fn vstack_rename_top(vstack: &mut VStack, new_name: ast::Ident) {
 // TODO: czy aby potrzebne
 // // TODO: hack, polega na 8-bajtowości zmiennych
 // fn vstack_align(vstack: &mut VStack, output: &mut Output, args_count: usize) {
-//     let stack_args_count = std::cmp::max(0, args_count - 6);
+//     let stack_args_count = std::cmp::max(0, args_count - ARG_REGS.len());
 //     if vstack.0.len() + stack_args_count % 2 == 1 {
 //         push_wrapper(REG_STACK, Some(".alignment"), vstack, output);
 //     }
@@ -207,7 +211,8 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
         .iter()
         .map(|arg_node| arg_node.data().1.data().clone())
         .collect();
-    // let arg_names_count = arg_names.len();
+    let arg_names_count = arg_names.len();
+    let stack_args_count = std::cmp::max(0, arg_names_count - ARG_REGS.len());
 
     let label_fn = ident_node.data();
     output.text.push(format!("{}:", label_fn));
@@ -217,14 +222,13 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
         .text
         .push(format!("{} {}, {}", OP_MOV, REG_BASE, REG_STACK));
 
-    // if arg_names_count > 6 {
-    //     vstack_rename_top(&mut vstack, &arg_names[6..arg_names.len()].to_vec());
-    // }
-    for i in 0..std::cmp::min(6, arg_nodes.len()) {
+    for i in 0..std::cmp::min(ARG_REGS.len(), arg_names_count) {
         push_wrapper(ARG_REGS[i], Some(&arg_names[i]), &mut vstack, output);
     }
 
     compile_block(block_node.data(), &mut vstack, labels, output);
+
+    // TOOD: zdejmownanie argumentów ze stosu
 
     // TODO: epilog tylko jeśli nie było returna żadnego
     output
@@ -466,17 +470,19 @@ fn compile_expr(
         ast::Expr::App(fname_node, arg_expr_nodes) => {
             let fname = fname_node.data();
             let args_count = arg_expr_nodes.len();
-            for i in 0..std::cmp::min(6, args_count) {
+            let stack_args_count = std::cmp::max(0, args_count - ARG_REGS.len());
+            for i in 0..std::cmp::min(ARG_REGS.len(), args_count) {
                 compile_expr(&arg_expr_nodes[i], vstack, labels, output);
                 pop_wrapper(ARG_REGS[i], vstack, output);
             }
             // vstack_align(vstack, output, args_count);
-            if args_count > 6 {
-                for i in (6..args_count).rev() {
-                    compile_expr(&arg_expr_nodes[i], vstack, labels, output);
-                }
+            for i in (0..stack_args_count).rev() {
+                compile_expr(&arg_expr_nodes[ARG_REGS.len() + i], vstack, labels, output);
             }
             output.text.push(format!("{} {}", OP_CALL, fname));
+            if stack_args_count > 0 {
+                output.text.push(format!("{} {}, {}", OP_ADD, REG_STACK, VAR_SIZE * stack_args_count));
+            }
             push_wrapper(REG_FN_RETVAL, None, vstack, output);
         }
         ast::Expr::Add(expr1, expr2) if expr.get_type() == ast::Type::Var(ast::Prim::Str) => {
