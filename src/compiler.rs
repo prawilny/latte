@@ -140,6 +140,11 @@ fn vstack_rename_top(vstack: &mut VStack, new_name: ast::Ident) {
     *vstack.0.last_mut().unwrap() = new_name;
 }
 
+fn vstack_shrink_stack(vstack: &mut VStack, output: &mut Output) {
+    vstack.0.pop();
+    output.text.push(code_shrink_stack(1));
+}
+
 fn code_shrink_stack(n: usize) -> String {
     format!("{} {}, {}", OP_ADD, REG_STACK, n * VAR_SIZE)
 }
@@ -257,7 +262,10 @@ fn compile_stmt(
 ) {
     match stmt.data() {
         ast::Stmt::Empty => (),
-        ast::Stmt::Expr(expr_node) => compile_expr(expr_node, vstack, labels, output),
+        ast::Stmt::Expr(expr_node) => {
+            compile_expr(expr_node, vstack, labels, output);
+            vstack_shrink_stack(vstack, output);
+        }
         ast::Stmt::Block(block_node) => compile_block(block_node.data(), vstack, labels, output),
         ast::Stmt::Incr(ident_node) | ast::Stmt::Decr(ident_node) => {
             let offset = vstack_get_offset(vstack, ident_node.data());
