@@ -27,6 +27,7 @@ static REG_DIVIDEND: &str = "rax";
 static ARG_REGS: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
 
 static OP_MOV: &str = "mov";
+static OP_LEA: &str = "lea";
 static OP_XOR: &str = "xor";
 static OP_SUB: &str = "sub";
 static OP_ADD: &str = "add";
@@ -40,7 +41,6 @@ static OP_PUSH: &str = "push";
 static OP_CALL: &str = "call";
 static OP_CMP: &str = "cmp";
 static OP_RET: &str = "ret";
-static OP_MOV_CONSTANT: &str = "movabs";
 static OP_SIGN_EXTEND_DIVIDEND: &str = "cqo";
 
 static OP_SETCC_EQ: &str = "sete";
@@ -277,7 +277,7 @@ fn compile_stmt(
                                 output.text.push(format!("{} {}, {}", OP_MOV, REG_MAIN, default_value));
                             }
                             ast::Prim::Str => {
-                                output.text.push(format!("{} {}, offset {}", OP_MOV_CONSTANT, REG_MAIN, EMPTY_STRING_LABEL));
+                                output.text.push(format!("{} {}, {} ptr [{}]", OP_LEA, REG_MAIN, MEM_WORD_SIZE, EMPTY_STRING_LABEL));
                             }
                             ast::Prim::Void => unreachable!(),
                         }
@@ -375,7 +375,7 @@ fn compile_expr(
             let label = format!("str_{}", labels.len() + 1);
             labels.insert(label.clone());
             output.rodata.push(format!("{}: .asciz {}", label, s));
-            output.text.push(format!("{} {}, offset {}", OP_MOV_CONSTANT, REG_MAIN, label));
+            output.text.push(format!("{} {}, {} ptr [{}]", OP_LEA, REG_MAIN, MEM_WORD_SIZE, label));
             push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::Var(ident_node) => {
