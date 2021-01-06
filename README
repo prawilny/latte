@@ -12,6 +12,13 @@ właściwą instrukcją jest `if (true) if (false) ; else ; else ;`,
 niewłaściwą zaś: `if (true) if (false) ; else ;`.
 
 
+Uwagi do kompilatora
+========================================
+Kompilator obsługuje podstawową wersję języka latte.
+Kod wyjściowy jest kodem maszyny stosowej - liczę, że punkty za alokację rejestrów
+będą zdobywalne w terminie rozszerzeń.
+
+
 Kompilacja
 ========================================
 W systemie z dostępnym toolchainem rusta należy wykonać standardowe polecenie:
@@ -26,7 +33,7 @@ UWAGA: w przypadku instalacji rusta w lokalnym katalogu rozmiar katalogu po komp
 Uruchamianie
 ========================================
 kompilator:
-    latc FILEPATH
+    latc_x86_64 FILEPATH
 
 
 Zależności
@@ -35,6 +42,7 @@ biblioteka grmtools (https://softdevteam.github.io/grmtools/master/book/quicksta
     - cfgrammar,
     - lrlex,
     - lrpar,
+pakiet static_assertions (https://docs.rs/static_assertions/1.1.0/static_assertions/)
 
 
 Struktura projektu:
@@ -43,10 +51,11 @@ Struktura projektu:
 ├── build.rs            - skrypt do statycznego generowania kodu parsera
 ├── Cargo.lock          - lista zależności wraz z wersjami
 ├── Cargo.toml          - specyfikacja crate'a (pakietu)
-├── latc                - wrapper na type checker
+├── latc_x86_64         - skrypt uruchamiający kompilator
 ├── Makefile
 ├── README
 └── src
+    ├── compiler.rs     - moduł z funkcjami generującymi kod
     ├── latte.l         - plik definiujący lexer
     ├── latte.y         - plik definiujący parser
     ├── type_checker.rs - moduł z funkcjami pomagającymi sprawdzić statyczną poprawność programu
