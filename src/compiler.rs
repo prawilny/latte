@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
 
-sa::assert_eq_size!(usize, u64, IntType);
+sa::assert_eq_size!(usize, i64, IntType);
 
 static MEM_VAR_SIZE: &str = "qword";
 static VAR_SIZE: usize = std::mem::size_of::<IntType>();
@@ -12,8 +12,8 @@ static FN_STRCAT: &str = "__strcat";
 
 static REG_OP_MAIN: &str = "r11";
 static REG_OP_AUX: &str = "r10";
-static REG_TMP: &str = "rcx";
-static REG_TMP_BYTE: &str = "cl";
+static REG_TMP: &str = "r9";
+static REG_TMP_BYTE: &str = "r9b";
 
 static REG_FN_RETVAL: &str = "rax";
 
@@ -59,21 +59,20 @@ static VAL_FALSE: IntType = 0;
 static EMPTY_STRING_LABEL: &str = "__blank";
 
 static STACK_ARG_OFFSET: usize = 2 * VAR_SIZE;
-static VSTACK_OFFSET: usize = VAR_SIZE;
+static VSTACK_VAR_OFFSET: usize = VAR_SIZE;
 
 // TODO: przejrzenie kodu
 // TODO: sprawdzenie funkcji vstack_...
-
-// TODO: czyszczenie stosu z wartości tymczasowych itp (stmt::expr i expr::{or,and} głównie)
-// TODO: ? vstack_del_top()
 
 // TODO: mniej używać REG_TMP
 // TODO: REG_TMP różny od rax
 
 // TOOD: VStack => Frame(Vec<ast::Ident>, VStack) [dodanie do kontekstu poprzedniej ramki]
 
-// TODO: deduplikacja stringów
+// TODO: czyszczenie stosu z wartości tymczasowych itp (stmt::expr i expr::{or,and} głównie)
+// TODO: ? vstack_del_top()
 
+// TODO: deduplikacja stringów
 // TODO: epilog w fn_compile tylko jeśli nie było returna żadnego
 
 type VStack = (Vec<ast::Ident>, Vec<usize>);
@@ -87,7 +86,7 @@ struct Output {
 }
 
 fn error(msg: &str) -> ! {
-    eprintln!("Error");
+    eprintln!("ERROR");
     eprintln!("type checker didn't catch error: {}", msg);
     std::process::exit(42)
 }
@@ -109,13 +108,23 @@ fn pop_wrapper(target: &str, vstack: &mut VStack, output: &mut Output) {
 fn vstack_get_offset(vstack: &VStack, ident: &ast::Ident) -> usize {
     match vstack.0.iter().rposition(|i| i == ident) {
         None => error(&format!("use of undeclared variable {}", ident)),
-        Some(n) => n * VAR_SIZE + VSTACK_OFFSET,
+        Some(n) => n * VAR_SIZE + VSTACK_VAR_OFFSET,
     }
 }
 
 fn vstack_enter_scope(vstack: &mut VStack) {
     vstack.1.push(vstack.0.len());
 }
+
+// fn vstack_shrink(vstack: &mut VStack, output: &mut Output, final_size: usize) {
+//     let shrunk = vstack.0.len() - final_size;
+//     vstack.0.truncate(final_size);
+//     if shrunk > 0 {
+//         output
+//             .text
+//             .push(format!("{} {}, {}", OP_ADD, REG_STACK, shrunk * VAR_SIZE));
+//     }
+// }
 
 fn vstack_exit_scope(vstack: &mut VStack, output: &mut Output) {
     let h_before = vstack.0.len();
@@ -147,15 +156,6 @@ fn vstack_exit_fn(vstack: &mut VStack, output: &mut Output) {
 fn vstack_rename_top(vstack: &mut VStack, new_name: ast::Ident) {
     *vstack.0.last_mut().unwrap() = new_name;
 }
-
-// TODO: czy aby potrzebne
-// // TODO: hack, polega na 8-bajtowości zmiennych
-// fn vstack_align(vstack: &mut VStack, output: &mut Output, args_count: usize) {
-//     let stack_args_count = std::cmp::max(0, args_count - ARG_REGS.len()); // przerobić cmp na if{}else{}
-//     if vstack.0.len() + stack_args_count % 2 == 1 {
-//         push_wrapper(REG_STACK, Some(".alignment"), vstack, output);
-//     }
-// }
 
 fn directives(fdefs: &Vec<ast::Node<ast::FunDef>>, output: &mut Output) {
     output.directives.push(".intel_syntax".to_string());
@@ -487,7 +487,6 @@ fn compile_expr(
                 compile_expr(&arg_expr_nodes[i], vstack, labels, output);
                 pop_wrapper(ARG_REGS[i], vstack, output);
             }
-            // vstack_align(vstack, output, args_count);
             for i in (0..stack_args_count).rev() {
                 compile_expr(&arg_expr_nodes[ARG_REGS.len() + i], vstack, labels, output);
             }
