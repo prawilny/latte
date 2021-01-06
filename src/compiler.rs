@@ -61,7 +61,7 @@ static EMPTY_STRING_LABEL: &str = "__blank";
 static STACK_ARG_OFFSET: usize = 2 * VAR_SIZE;
 static VSTACK_VAR_OFFSET: usize = VAR_SIZE;
 
-// TOOD: VStack => Frame(Vec<ast::Ident>, VStack) [dodanie do kontekstu poprzedniej ramki]
+// TODO: VStack => Frame(Vec<ast::Ident>, VStack) [dodanie do kontekstu poprzedniej ramki]
 // TODO: deduplikacja stringów
 
 type VStack = (Vec<ast::Ident>, Vec<usize>);
