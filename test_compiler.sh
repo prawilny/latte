@@ -11,11 +11,12 @@ do
     FILE_PATH_STEM=${FILE_PATH%.lat}
     INPUT_FILE=$FILE_PATH_STEM.input
 
+    echo $FILE_PATH_STEM:
+
     $COMPILER $FILE_PATH_STEM.lat
 
     touch $INPUT_FILE
     cat $INPUT_FILE | $BASEDIR/$FILE_PATH_STEM 1>$FILE_PATH_STEM.result
 
-    echo diff $FILE_PATH_STEM
     diff $FILE_PATH_STEM.{output,result}
 done
