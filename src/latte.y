@@ -224,6 +224,18 @@ Expr6 -> Result<Node<Expr>, ()>:
         Ok(Node::new(Span::new(ident.span().start(), rb.span().end()), Expr::Fun(ident, $3?)))
       }
     |
+      Expr6 'DOT' Ident '(' Exprs ')' {
+        let e = $1?;
+        let rb = $6.map_err(|_| ())?;
+        Ok(Node::new(Span::new(e.span().start(), rb.span().end()), Expr::Mthd(Box::new(e), $3?, $5?)))
+      }
+    |
+      Expr6 'DOT' Ident {
+        let e = $1?;
+        let ident = $3?;
+        Ok(Node::new(Span::new(e.span().start(), ident.span().end()), Expr::Dot(Box::new(e), ident)))
+      }
+    |
       Ident {
         let v = $1.map_err(|_| ())?;
         Ok(Node::new(v.span().clone(), Expr::Var(v)))
@@ -244,6 +256,19 @@ Expr6 -> Result<Node<Expr>, ()>:
         Ok(Node::new(v.span(), Expr::Bool(false)))
       }
     |
+      'NEW' Ident {
+        let new = $1.map_err(|_| ())?;
+        let ident = $2?;
+        Ok(Node::new(Span::new(new.span().start(), ident.span().end()), Expr::New(ident)))
+      }
+    |
+//      '(' Ident ')' 'NULL' {
+//        let lb = $1.map_err(|_| ())?;
+//        let ident = $2?;
+//        let null = $4.map_err(|_| ())?;
+//        Ok(Node::new(Span::new(lb.span().start(), null.span().end()), Expr::Null(ident)))
+//      }
+//    |
       Expr7 {
         $1
       }
