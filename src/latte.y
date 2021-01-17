@@ -203,21 +203,30 @@ Prim -> Result<Node<Prim>, ()>:
       }
     ;
 
+Members -> Result<Vec<Node<Member>>, ()>:
+      { Ok(vec![]) }
+    |
+      Members ArgOrMember {
+        let mut members = $1?;
+        members.push($2?);
+        Ok(members)
+      }
+    ;
 Args -> Result<Vec<Node<Arg>>, ()>:
       { Ok(vec![]) }
     |
       Args2 { $1 }
     ;
 Args2 -> Result<Vec<Node<Arg>>, ()>:
-      Arg { Ok(vec![$1?]) }
+      ArgOrMember { Ok(vec![$1?]) }
     |
-      Args2 ',' Arg {
+      Args2 ',' ArgOrMember {
         let mut args = $1?;
         args.push($3?);
         Ok(args)
       }
     ;
-Arg -> Result<Node<Arg>, ()>:
+ArgOrMember -> Result<Node<(Node<Prim>, Node<Ident>)>, ()>:
       Prim Ident {
         Ok(Node::new(join_ast_spans(&$1, &$2)?, ($1?, $2?)))
       }
