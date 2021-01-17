@@ -66,6 +66,7 @@ static VSTACK_VAR_OFFSET: usize = VAR_SIZE;
 // TODO: sprawdzić, czy stos jest posprzątany (nie ma śmieci przy obliczaniu wyrażeń), żeby wołanie funkcji działało
 // TODO: sprawdzić "_", unimplemented!, unreachable!
 // TODO: funkcje obiektów w runtime (malloc, free, ...)
+// TODO: test kompilatora na większej wersji niedziałającego testu backendu
 
 type VStack = (Vec<ast::Ident>, Vec<usize>);
 type Label = String;

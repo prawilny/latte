@@ -417,13 +417,23 @@ pub type Ident = String;
 
 pub type FunDef = (Node<Prim>, Node<Ident>, Vec<Node<Arg>>, Node<Block>);
 
+pub type ClassDef = (Node<Ident>, Option<Node<Ident>>, Vec<Node<Member>>, Vec<Node<FunDef>>);
+
 pub type FunType = (Prim, Vec<Prim>);
 
 pub type Block = Vec<Node<Stmt>>;
 
 pub type Arg = (Node<Prim>, Node<Ident>);
 
+pub type Member = Arg;
+
 pub type IntType = i64;
+
+#[derive(Debug, Clone)]
+pub enum TopDef {
+  Function(Node<FunDef>),
+  Class(Node<ClassDef>),
+}
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
