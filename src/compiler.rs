@@ -64,6 +64,8 @@ static VSTACK_VAR_OFFSET: usize = VAR_SIZE;
 // TODO: VStack => Frame(Vec<ast::Ident>, VStack) [dodanie do kontekstu poprzedniej ramki]
 // TODO: deduplikacja stringów
 // TODO: sprawdzić, czy stos jest posprzątany (nie ma śmieci przy obliczaniu wyrażeń), żeby wołanie funkcji działało
+// TODO: sprawdzić "_", unimplemented!, unreachable!
+// TODO: funkcje obiektów w runtime (malloc, free, ...)
 
 type VStack = (Vec<ast::Ident>, Vec<usize>);
 type Label = String;
@@ -399,7 +401,7 @@ fn compile_expr(
             output.text.push(format!("{} {}", OP_SETCC_EQ, REG_TMP_BYTE));
             push_wrapper(REG_TMP, None, vstack, output);
         }
-        ast::Expr::App(fname_node, arg_expr_nodes) => {
+        ast::Expr::Fun(fname_node, arg_expr_nodes) => {
             let fname = fname_node.data();
             let args_count = arg_expr_nodes.len();
             let stack_args_count = if args_count > ARG_REGS.len() {
@@ -510,5 +512,9 @@ fn compile_expr(
             output.text.push(format!("{} {}", opcode, REG_TMP_BYTE));
             push_wrapper(REG_TMP, None, vstack, output);
         }
+        ast::Expr::New(_ident_node) => unimplemented!(),
+        ast::Expr::Null(_ident_node) => unimplemented!(),
+        ast::Expr::Dot(_expr_node, _ident_node) => unimplemented!(),
+        ast::Expr::Mthd(_expr_node, _ident_node, _arg_nodes) => unimplemented!(),
     }
 }

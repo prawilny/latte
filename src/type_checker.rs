@@ -1,4 +1,4 @@
-// TODO: doprowadzenie postaci rozwiązania do pełnej zgodności ze specyfikacją
+// TODO: sprawdzić "_", unimplemented!, unreachable!
 
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
@@ -44,15 +44,15 @@ fn wrap_error_msg(lexer: &dyn Lexer<u32>, span: &Span, msg: &str) -> String {
     let context = lexer.span_lines_str(*span).trim();
     let ((start_line, start_column), (end_line, end_column)) = lexer.line_col(*span);
 
-    let wrapped = format!(
+    let wrFuned = format!(
         "{} at {}:{}-{}:{}\nin\n'{}'",
         msg, start_line, start_column, end_line, end_column, offender
     );
 
     if offender.len() < context.len() {
-        format!("{}\nin\n'{}'", wrapped, context)
+        format!("{}\nin\n'{}'", wrFuned, context)
     } else {
-        wrapped
+        wrFuned
     }
 }
 
@@ -222,7 +222,7 @@ fn check_expr(
     lexer: &dyn Lexer<u32>,
 ) -> Result<ast::Prim, String> {
     let retval = match expr.data() {
-        ast::Expr::App(ident_node, expr_nodes) => {
+        ast::Expr::Fun(ident_node, expr_nodes) => {
             let (fun_type, fun_arg_types) = match fenv.get(ident_node.data()) {
                 None => {
                     return Err(wrap_error_msg(
@@ -372,6 +372,10 @@ fn check_expr(
                 )),
             }
         }
+        ast::Expr::New(_ident_node) => unimplemented!(),
+        ast::Expr::Null(_ident_node) => unimplemented!(),
+        ast::Expr::Dot(_expr_node, _ident_node) => unimplemented!(),
+        ast::Expr::Mthd(_expr_node, _ident_node, _arg_nodes) => unimplemented!(),
     };
     let expr_type = retval?;
     expr.set_type(&ast::Type::Var(expr_type.clone()));

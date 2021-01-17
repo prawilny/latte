@@ -148,7 +148,7 @@ Expr6 -> Result<Node<Expr>, ()>:
       Ident '(' Exprs ')' {
         let ident = $1?;
         let rb = $4.map_err(|_| ())?;
-        Ok(Node::new(Span::new(ident.span().start(), rb.span().end()), Expr::App(ident, $3?)))
+        Ok(Node::new(Span::new(ident.span().start(), rb.span().end()), Expr::Fun(ident, $3?)))
       }
     |
       Ident {
@@ -482,7 +482,12 @@ pub enum Expr {
     Bool(bool),
     Str(String),
 
-    App(Node<Ident>, Vec<Node<Expr>>),
+    New(Node<Ident>),
+    Null(Node<Ident>),
+    Dot(Box<Node<Expr>>, Node<Ident>),
+    Mthd(Box<Node<Expr>>, Node<Ident>, Vec<Node<Expr>>),
+    Fun(Node<Ident>, Vec<Node<Expr>>),
+
     Neg(Box<Node<Expr>>),
     Not(Box<Node<Expr>>),
 
