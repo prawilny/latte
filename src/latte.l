@@ -13,7 +13,7 @@ void "VOID"
 
 new "NEW"
 class "CLASS"
-null "NULL"
+\)null "NULL"
 extends "EXTENDS"
 [.] "DOT"
 

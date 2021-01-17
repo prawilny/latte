@@ -262,13 +262,13 @@ Expr6 -> Result<Node<Expr>, ()>:
         Ok(Node::new(Span::new(new.span().start(), ident.span().end()), Expr::New(ident)))
       }
     |
-//      '(' Ident ')' 'NULL' {
-//        let lb = $1.map_err(|_| ())?;
-//        let ident = $2?;
-//        let null = $4.map_err(|_| ())?;
-//        Ok(Node::new(Span::new(lb.span().start(), null.span().end()), Expr::Null(ident)))
-//      }
-//    |
+      '(' Ident 'NULL' {
+        let lb = $1.map_err(|_| ())?;
+        let ident = $2?;
+        let null = $3.map_err(|_| ())?;
+        Ok(Node::new(Span::new(lb.span().start(), null.span().end()), Expr::Null(ident)))
+      }
+    |
       Expr7 {
         $1
       }
