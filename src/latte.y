@@ -1,10 +1,19 @@
-%start FunDefs
+%start TopDefs
 %%
 
 // let sign = $1.map_err(|_| ())?;
 // let v = $2.map_err(|_| ())?;
 // Ok(Node::new(Span::new(sign.span().start(), v.span().end()), Expr::Neg(Box::new(v))))
 
+TopDefs -> Result<Vec<TopDef>, ()>:
+      { Ok(vec![]) }
+    |
+      TopDefs TopDef {
+        let mut defs = $1?;
+        defs.push($2?);
+        Ok(defs)
+      }
+    ;
 TopDef -> Result<TopDef, ()>:
       ClassDef {
           Ok(TopDef::Class($1?))
@@ -40,10 +49,10 @@ FunDefs -> Result<Vec<Node<FunDef>>, ()>:
       }
     ;
 FunDef -> Result<Node<FunDef>, ()>:
-      Prim Ident '(' Args ')' Block {
-        let prim = $1.map_err(|_| ())?;
+      PrimIdent '(' Args ')' Block {
+        let prim_ident = $1.map_err(|_| ())?;
         let block = $6.map_err(|_| ())?;
-        Ok(Node::new(Span::new(prim.span().start(), block.span().end()), (prim, $2?, $4?, block)))
+        Ok(Node::new(Span::new(prim_ident.span().start(), block.span().end()), (prim_ident.0, prim_ident.1, $4?, block)))
       }
     ;
 
@@ -233,7 +242,7 @@ Prim -> Result<Node<Prim>, ()>:
 Members -> Result<Vec<Node<Member>>, ()>:
       { Ok(vec![]) }
     |
-      Members ArgOrMember {
+      Members PrimIdent ';' {
         let mut members = $1?;
         members.push($2?);
         Ok(members)
@@ -245,15 +254,15 @@ Args -> Result<Vec<Node<Arg>>, ()>:
       Args2 { $1 }
     ;
 Args2 -> Result<Vec<Node<Arg>>, ()>:
-      ArgOrMember { Ok(vec![$1?]) }
+      PrimIdent { Ok(vec![$1?]) }
     |
-      Args2 ',' ArgOrMember {
+      Args2 ',' PrimIdent {
         let mut args = $1?;
         args.push($3?);
         Ok(args)
       }
     ;
-ArgOrMember -> Result<Node<(Node<Prim>, Node<Ident>)>, ()>:
+PrimIdent -> Result<Node<(Node<Prim>, Node<Ident>)>, ()>:
       Prim Ident {
         Ok(Node::new(join_ast_spans(&$1, &$2)?, ($1?, $2?)))
       }
