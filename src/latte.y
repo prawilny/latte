@@ -450,10 +450,11 @@ pub enum Item {
 impl std::fmt::Display for Prim {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
       let prim = match self {
-        Prim::Int => "int",
-        Prim::Str => "string",
-        Prim::Void => "void",
-        Prim::Bool => "boolean",
+        Prim::Int => "int".to_string(),
+        Prim::Str => "string".to_string(),
+        Prim::Void => "void".to_string(),
+        Prim::Bool => "boolean".to_string(),
+        Prim::Class(class_name) => format!("class {}", &class_name),
       };
       write!(f, "{}", prim)
     }
@@ -465,6 +466,7 @@ pub enum Prim {
     Str,
     Void,
     Bool,
+    Class(Ident),
 }
 
 #[derive(Debug, Clone, PartialEq)]

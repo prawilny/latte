@@ -11,6 +11,12 @@ string "STR"
 boolean "BOOL"
 void "VOID"
 
+new "NEW"
+class "CLASS"
+null "NULL"
+extends "EXTENDS"
+[.] "DOT"
+
 ; ";"
 , ","
 

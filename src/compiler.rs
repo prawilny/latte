@@ -281,6 +281,7 @@ fn compile_stmt(
                                 output.text.push(format!("{} {}, {} ptr [{}]", OP_LEA, REG_MAIN, MEM_WORD_SIZE, EMPTY_STRING_LABEL));
                             }
                             ast::Prim::Void => unreachable!(),
+                            ast::Prim::Class(_class_name) => unimplemented!(),
                         }
                         push_wrapper(REG_MAIN, Some(&ident_node.data().clone()), vstack, output);
                     }
