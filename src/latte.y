@@ -1,10 +1,6 @@
 %start TopDefs
 %%
 
-// let sign = $1.map_err(|_| ())?;
-// let v = $2.map_err(|_| ())?;
-// Ok(Node::new(Span::new(sign.span().start(), v.span().end()), Expr::Neg(Box::new(v))))
-
 TopDefs -> Result<Vec<TopDef>, ()>:
       { Ok(vec![]) }
     |
@@ -25,19 +21,60 @@ TopDef -> Result<TopDef, ()>:
     ;
 
 ClassDef -> Result<Node<ClassDef>, ()>:
-      'CLASS' Ident '{' Members FunDefs '}' {
+      'CLASS' Ident '{' Members '}' {
           let class = $1.map_err(|_| ())?;
-          let rb = $6.map_err(|_| ())?;
-          Ok(Node::new(Span::new(class.span().start(), rb.span().end()), ($2?, None, $4?, $5?)))
+          let members = $4?;
+          let mut methods = vec![];
+          let mut fields = vec![];
+          for member in members.drain(..) {
+              if let Member::Variable(field) = member {
+                  fields.push(field);
+              }
+              if let Member::Method(method) = member {
+                  methods.push(method);
+              }
+          }
+          let rb = $5.map_err(|_| ())?;
+          Ok(Node::new(Span::new(class.span().start(), rb.span().end()), ($2?, None, fields, methods)))
       }
     |
-      'CLASS' Ident 'EXTENDS' Ident '{' Members FunDefs '}' {
+      'CLASS' Ident 'EXTENDS' Ident '{' Members '}' {
           let class = $1.map_err(|_| ())?;
-          let rb = $8.map_err(|_| ())?;
-          Ok(Node::new(Span::new(class.span().start(), rb.span().end()), ($2?, Some($4?), $6?, $7?)))
+          let members = $6?;
+          let mut methods = vec![];
+          let mut fields = vec![];
+          for member in members.drain(..) {
+              if let Member::Variable(field) = member {
+                  fields.push(field);
+              }
+              if let Member::Method(method) = member {
+                  methods.push(method);
+              }
+          }
+          let rb = $7.map_err(|_| ())?;
+          Ok(Node::new(Span::new(class.span().start(), rb.span().end()), ($2?, Some($4?), fields, methods)))
       }
     ;
-//      'CLASS' Ident 'EXTENDS'
+
+Members -> Result<Vec<Member>, ()>:
+      { Ok(vec![]) }
+    |
+      Members PrimIdent ';' {
+        let mut members = $1?;
+        let prim_ident = $2?;
+        members.push(Member::Variable(Node::new(*prim_ident.span(), prim_ident.data().clone())));
+        Ok(members)
+      }
+    |
+      Members PrimIdent '(' Args ')' Block ';' {
+        let mut members = $1?;
+        let prim_ident = $2?;
+        let block = $6.map_err(|_| ())?;
+        let member = Member::Method(Node::new(Span::new(prim_ident.span().start(), block.span().end()),(prim_ident.data().0, prim_ident.data().1, $4?, block)));
+        members.push(member);
+        Ok(members)
+      }
+    ;
 
 FunDefs -> Result<Vec<Node<FunDef>>, ()>:
       { Ok(vec![]) }
@@ -51,8 +88,8 @@ FunDefs -> Result<Vec<Node<FunDef>>, ()>:
 FunDef -> Result<Node<FunDef>, ()>:
       PrimIdent '(' Args ')' Block {
         let prim_ident = $1.map_err(|_| ())?;
-        let block = $6.map_err(|_| ())?;
-        Ok(Node::new(Span::new(prim_ident.span().start(), block.span().end()), (prim_ident.0, prim_ident.1, $4?, block)))
+        let block = $5.map_err(|_| ())?;
+        Ok(Node::new(Span::new(prim_ident.span().start(), block.span().end()), (prim_ident.data().0, prim_ident.data().1, $3?, block)))
       }
     ;
 
@@ -239,15 +276,6 @@ Prim -> Result<Node<Prim>, ()>:
       }
     ;
 
-Members -> Result<Vec<Node<Member>>, ()>:
-      { Ok(vec![]) }
-    |
-      Members PrimIdent ';' {
-        let mut members = $1?;
-        members.push($2?);
-        Ok(members)
-      }
-    ;
 Args -> Result<Vec<Node<Arg>>, ()>:
       { Ok(vec![]) }
     |
@@ -462,7 +490,7 @@ pub type Ident = String;
 
 pub type FunDef = (Node<Prim>, Node<Ident>, Vec<Node<Arg>>, Node<Block>);
 
-pub type ClassDef = (Node<Ident>, Option<Node<Ident>>, Vec<Node<Member>>, Vec<Node<FunDef>>);
+pub type ClassDef = (Node<Ident>, Option<Node<Ident>>, Vec<Node<Field>>, Vec<Node<FunDef>>);
 
 pub type FunType = (Prim, Vec<Prim>);
 
@@ -470,14 +498,20 @@ pub type Block = Vec<Node<Stmt>>;
 
 pub type Arg = (Node<Prim>, Node<Ident>);
 
-pub type Member = Arg;
+pub type Field = Arg;
+
+#[derive(Debug, Clone)]
+enum Member {
+    Variable(Node<Field>),
+    Method(Node<FunDef>),
+}
 
 pub type IntType = i64;
 
 #[derive(Debug, Clone)]
 pub enum TopDef {
-  Function(Node<FunDef>),
-  Class(Node<ClassDef>),
+    Function(Node<FunDef>),
+    Class(Node<ClassDef>),
 }
 
 #[derive(Debug, Clone)]
