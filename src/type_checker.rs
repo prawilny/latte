@@ -44,15 +44,15 @@ fn wrap_error_msg(lexer: &dyn Lexer<u32>, span: &Span, msg: &str) -> String {
     let context = lexer.span_lines_str(*span).trim();
     let ((start_line, start_column), (end_line, end_column)) = lexer.line_col(*span);
 
-    let wrFuned = format!(
+    let wrappepd = format!(
         "{} at {}:{}-{}:{}\nin\n'{}'",
         msg, start_line, start_column, end_line, end_column, offender
     );
 
     if offender.len() < context.len() {
-        format!("{}\nin\n'{}'", wrFuned, context)
+        format!("{}\nin\n'{}'", wrappepd, context)
     } else {
-        wrFuned
+        wrappepd
     }
 }
 
