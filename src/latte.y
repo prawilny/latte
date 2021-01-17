@@ -1,6 +1,35 @@
 %start FunDefs
 %%
 
+// let sign = $1.map_err(|_| ())?;
+// let v = $2.map_err(|_| ())?;
+// Ok(Node::new(Span::new(sign.span().start(), v.span().end()), Expr::Neg(Box::new(v))))
+
+TopDef -> Result<TopDef, ()>:
+      ClassDef {
+          Ok(TopDef::Class($1?))
+      }
+    |
+      FunDef {
+          Ok(TopDef::Function($1?))
+      }
+    ;
+
+ClassDef -> Result<Node<ClassDef>, ()>:
+      'CLASS' Ident '{' Members FunDefs '}' {
+          let class = $1.map_err(|_| ())?;
+          let rb = $6.map_err(|_| ())?;
+          Ok(Node::new(Span::new(class.span().start(), rb.span().end()), ($2?, None, $4?, $5?)))
+      }
+    |
+      'CLASS' Ident 'EXTENDS' Ident '{' Members FunDefs '}' {
+          let class = $1.map_err(|_| ())?;
+          let rb = $8.map_err(|_| ())?;
+          Ok(Node::new(Span::new(class.span().start(), rb.span().end()), ($2?, Some($4?), $6?, $7?)))
+      }
+    ;
+//      'CLASS' Ident 'EXTENDS'
+
 FunDefs -> Result<Vec<Node<FunDef>>, ()>:
       { Ok(vec![]) }
     |
@@ -13,10 +42,8 @@ FunDefs -> Result<Vec<Node<FunDef>>, ()>:
 FunDef -> Result<Node<FunDef>, ()>:
       Prim Ident '(' Args ')' Block {
         let prim = $1.map_err(|_| ())?;
-        let ident = $2.map_err(|_| ())?;
-        let args = $4.map_err(|_| ())?;
         let block = $6.map_err(|_| ())?;
-        Ok(Node::new(Span::new(prim.span().start(), block.span().end()), (prim, ident, args, block)))
+        Ok(Node::new(Span::new(prim.span().start(), block.span().end()), (prim, $2?, $4?, block)))
       }
     ;
 
