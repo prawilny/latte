@@ -63,6 +63,7 @@ static VSTACK_VAR_OFFSET: usize = VAR_SIZE;
 
 // TODO: VStack => Frame(Vec<ast::Ident>, VStack) [dodanie do kontekstu poprzedniej ramki]
 // TODO: deduplikacja stringów
+// TODO: sprawdzić, czy stos jest posprzątany (nie ma śmieci przy obliczaniu wyrażeń), żeby wołanie funkcji działało
 
 type VStack = (Vec<ast::Ident>, Vec<usize>);
 type Label = String;
@@ -405,12 +406,13 @@ fn compile_expr(
             } else {
                 0
             };
-            for i in 0..std::cmp::min(ARG_REGS.len(), args_count) {
+            // TODO: nadpisywany rejestr jeśli przy obliczaniu wartości wyrażenia wywołujemy funkcję
+            // TODO: policzyć wszystkie argumenty, a potem dopiero robić pop()
+            for i in (0..args_count).rev() {
                 compile_expr(&arg_expr_nodes[i], vstack, labels, output);
-                pop_wrapper(ARG_REGS[i], vstack, output);
             }
-            for i in (0..stack_args_count).rev() {
-                compile_expr(&arg_expr_nodes[ARG_REGS.len() + i], vstack, labels, output);
+            for i in 0..std::cmp::min(ARG_REGS.len(), args_count) {
+                pop_wrapper(ARG_REGS[i], vstack, output);
             }
             output.text.push(format!("{} {}", OP_CALL, fname));
             if stack_args_count > 0 {
