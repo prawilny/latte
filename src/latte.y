@@ -1,17 +1,17 @@
 %start TopDefs
 %%
 
-TopDefs -> Result<(Vec<Node<FunDef>>, Vec<Node<ClassDef>>), ()>:
+TopDefs -> Result<(Vec<Node<ClassDef>>, Vec<Node<FunDef>>), ()>:
       { Ok((vec![], vec![])) }
     |
       TopDefs TopDef {
         let mut defs = $1?;
         let def = $2?;
         if let TopDef::Class(c) = def {
-          defs.1.push(c);
+          defs.0.push(c);
         }
         if let TopDef::Function(f) = def {
-          defs.0.push(f);
+          defs.1.push(f);
         }
         Ok(defs)
       }
@@ -580,7 +580,7 @@ pub enum Prim {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     Var(Prim),
-//    Fun(FunType)
+    Fun(FunType)
 }
 
 #[derive(Debug, Clone)]
