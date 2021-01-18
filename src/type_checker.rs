@@ -379,7 +379,7 @@ fn check_expr(
                 )),
             }
         }
-        ast::Expr::New(_ident_node) => unimplemented!(),
+        ast::Expr::New(ident_node) => Ok(ast::Prim::Class(ident_node.data().clone())),
         ast::Expr::Null(_ident_node) => unimplemented!(),
         ast::Expr::Dot(_expr_node, _ident_node) => unimplemented!(),
         ast::Expr::Mthd(_expr_node, _ident_node, _arg_nodes) => unimplemented!(),
@@ -563,6 +563,7 @@ fn check_stmt(
     }
 }
 
+// TODO: sprawdzanie metod
 fn check_fn(
     fdef: &ast::Node<ast::FunDef>,
     cfenv: &CFEnv,
@@ -599,9 +600,9 @@ fn class_env(cdefs: &Vec<ast::Node<ast::ClassDef>>, lexer: &dyn Lexer<u32>) -> R
     for cdef in cdefs {
         let (ident_node, parent_ident_node_option, field_nodes, method_nodes) = cdef.data();
 
-        let parent_ident_option = parent_ident_node_option.map(|pino| pino.data().to_string());
+        let parent_ident_option = parent_ident_node_option.as_ref().map(|pino| pino.data().to_string());
 
-        let members: HashMap<ast::Ident, ast::Type> = HashMap::new();
+        let mut members: HashMap<ast::Ident, ast::Type> = HashMap::new();
 
         for field_node in field_nodes {
             let (prim_node, ident_node) = field_node.data();
@@ -677,7 +678,7 @@ fn fn_env(fdefs: &Vec<ast::Node<ast::FunDef>>, lexer: &dyn Lexer<u32>) -> Result
     for fdef in fdefs.iter() {
         let (prim_node, ident_node, arg_nodes, _) = fdef.data();
 
-        let mut arg_types = arg_types(arg_nodes, lexer)?;
+        let arg_types = arg_types(arg_nodes, lexer)?;
         let (fn_type, fn_name) = (prim_node.data(), ident_node.data());
         if let Some(_) = fenv.insert(fn_name.clone(), (fn_type.clone(), arg_types)) {
             return Err(wrap_error_msg(

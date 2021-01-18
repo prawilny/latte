@@ -67,6 +67,7 @@ static VSTACK_VAR_OFFSET: usize = VAR_SIZE;
 // TODO: sprawdzić "_", unimplemented!, unreachable!
 // TODO: funkcje obiektów w runtime (malloc, free, ...)
 // TODO: test kompilatora na większej wersji niedziałającego testu backendu
+// TODO: uwaga na zmienne z klasy w metodach
 
 type VStack = (Vec<ast::Ident>, Vec<usize>);
 type Label = String;
@@ -158,16 +159,16 @@ fn directives(fdefs: &Vec<ast::Node<ast::FunDef>>, output: &mut Output) {
     }
 }
 
-pub fn compile(fdefs: &Vec<ast::Node<ast::FunDef>>) {
+pub fn compile(cfdefs: &(Vec<ast::Node<ast::ClassDef>>, Vec<ast::Node<ast::FunDef>>)) {
     let mut output = Output::default();
     let mut labels = HashSet::new();
 
-    directives(&fdefs, &mut output);
+    directives(&cfdefs.1, &mut output);
 
     labels.insert(EMPTY_STRING_LABEL.to_string());
     output.rodata.push(format!("{}: .asciz \"\"", EMPTY_STRING_LABEL));
 
-    for fdef in fdefs {
+    for fdef in &cfdefs.1 {
         compile_fn(fdef, &mut labels, &mut output);
     }
 

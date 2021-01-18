@@ -9,8 +9,7 @@ TopDefs -> Result<(Vec<Node<ClassDef>>, Vec<Node<FunDef>>), ()>:
         let def = $2?;
         if let TopDef::Class(c) = def {
           defs.0.push(c);
-        }
-        if let TopDef::Function(f) = def {
+        } else if let TopDef::Function(f) = def {
           defs.1.push(f);
         }
         Ok(defs)
@@ -29,14 +28,13 @@ TopDef -> Result<TopDef, ()>:
 ClassDef -> Result<Node<ClassDef>, ()>:
       'CLASS' Ident '{' Members '}' {
           let class = $1.map_err(|_| ())?;
-          let members = $4?;
+          let mut members = $4?;
           let mut methods = vec![];
           let mut fields = vec![];
           for member in members.drain(..) {
               if let Member::Variable(field) = member {
                   fields.push(field);
-              }
-              if let Member::Method(method) = member {
+              } else if let Member::Method(method) = member {
                   methods.push(method);
               }
           }
@@ -46,14 +44,13 @@ ClassDef -> Result<Node<ClassDef>, ()>:
     |
       'CLASS' Ident 'EXTENDS' Ident '{' Members '}' {
           let class = $1.map_err(|_| ())?;
-          let members = $6?;
+          let mut members = $6?;
           let mut methods = vec![];
           let mut fields = vec![];
           for member in members.drain(..) {
               if let Member::Variable(field) = member {
                   fields.push(field);
-              }
-              if let Member::Method(method) = member {
+              } else if let Member::Method(method) = member {
                   methods.push(method);
               }
           }
@@ -76,7 +73,7 @@ Members -> Result<Vec<Member>, ()>:
         let mut members = $1?;
         let prim_ident = $2?;
         let block = $6.map_err(|_| ())?;
-        let member = Member::Method(Node::new(Span::new(prim_ident.span().start(), block.span().end()),(prim_ident.data().0, prim_ident.data().1, $4?, block)));
+        let member = Member::Method(Node::new(Span::new(prim_ident.span().start(), block.span().end()),(prim_ident.data().0.clone(), prim_ident.data().1.clone(), $4?, block)));
         members.push(member);
         Ok(members)
       }
@@ -95,7 +92,7 @@ FunDef -> Result<Node<FunDef>, ()>:
       PrimIdent '(' Args ')' Block {
         let prim_ident = $1.map_err(|_| ())?;
         let block = $5.map_err(|_| ())?;
-        Ok(Node::new(Span::new(prim_ident.span().start(), block.span().end()), (prim_ident.data().0, prim_ident.data().1, $3?, block)))
+        Ok(Node::new(Span::new(prim_ident.span().start(), block.span().end()), (prim_ident.data().0.clone(), prim_ident.data().1.clone(), $3?, block)))
       }
     ;
 
