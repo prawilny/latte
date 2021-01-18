@@ -1,12 +1,18 @@
 %start TopDefs
 %%
 
-TopDefs -> Result<Vec<TopDef>, ()>:
-      { Ok(vec![]) }
+TopDefs -> Result<(Vec<Node<FunDef>>, Vec<Node<ClassDef>>), ()>:
+      { Ok((vec![], vec![])) }
     |
       TopDefs TopDef {
         let mut defs = $1?;
-        defs.push($2?);
+        let def = $2?;
+        if let TopDef::Class(c) = def {
+          defs.1.push(c);
+        }
+        if let TopDef::Function(f) = def {
+          defs.0.push(f);
+        }
         Ok(defs)
       }
     ;
@@ -525,19 +531,7 @@ pub type Arg = (Node<Prim>, Node<Ident>);
 
 pub type Field = Arg;
 
-#[derive(Debug, Clone)]
-enum Member {
-    Variable(Node<Field>),
-    Method(Node<FunDef>),
-}
-
 pub type IntType = i64;
-
-#[derive(Debug, Clone)]
-pub enum TopDef {
-    Function(Node<FunDef>),
-    Class(Node<ClassDef>),
-}
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
@@ -620,6 +614,18 @@ pub enum Expr {
     GTH(Box<Node<Expr>>, Box<Node<Expr>>),
     EQ (Box<Node<Expr>>, Box<Node<Expr>>),
     NEQ(Box<Node<Expr>>, Box<Node<Expr>>),
+}
+
+#[derive(Debug, Clone)]
+enum Member {
+    Variable(Node<Field>),
+    Method(Node<FunDef>),
+}
+
+#[derive(Debug, Clone)]
+enum TopDef {
+    Function(Node<FunDef>),
+    Class(Node<ClassDef>),
 }
 
 fn parse_int(s: &str) -> Result<IntType, ()> {
