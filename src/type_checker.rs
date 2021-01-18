@@ -1,7 +1,11 @@
 // TODO: sprawdzić "_", unimplemented!, unreachable!
-// TODO: sprawdzenie metod
+// TODO: sprawdzenie metod (parametr this w check_* ?)
 // TODO: README o castach i ")null"
 // TODO: upewnić się, że testy standardowe przechodzą
+// TODO: zmienne wewnątrz klasy
+// TODO: upewnić się, że dodanie obiektów nie wymaga zmiany niczego więcej
+
+// TODO: dodanie zmiennych i funkcji z nadklas do środowiska sprawdzania metody
 
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
@@ -229,6 +233,19 @@ fn check_expr(
     lexer: &dyn Lexer<u32>,
 ) -> Result<ast::Prim, String> {
     let retval = match expr.data() {
+        ast::Expr::Dot(expr_node, ident_node) =>
+            match check_expr(expr_node, venv, cfenv, lexer)? {
+                ast::Prim::Class(class_name) => {
+                    unimplemented!();
+                }
+                non_class_prim =>
+                    return Err(wrap_error_msg(
+                        lexer,
+                        expr_node.span(),
+                        "left side of . is not a class",
+                    ))
+            }
+        ast::Expr::Mthd(_expr_node, _ident_node, _arg_nodes) => unimplemented!(),
         ast::Expr::Fun(ident_node, expr_nodes) => {
             let (fun_type, fun_arg_types) = match cfenv.1.get(ident_node.data()) {
                 None => {
@@ -379,10 +396,8 @@ fn check_expr(
                 )),
             }
         }
-        ast::Expr::New(ident_node) => Ok(ast::Prim::Class(ident_node.data().clone())),
-        ast::Expr::Null(_ident_node) => unimplemented!(),
-        ast::Expr::Dot(_expr_node, _ident_node) => unimplemented!(),
-        ast::Expr::Mthd(_expr_node, _ident_node, _arg_nodes) => unimplemented!(),
+        ast::Expr::New(ident_node)
+        | ast::Expr::Null(ident_node) => Ok(ast::Prim::Class(ident_node.data().clone())),
     };
     let expr_type = retval?;
     expr.set_type(&ast::Type::Var(expr_type.clone()));
@@ -563,7 +578,6 @@ fn check_stmt(
     }
 }
 
-// TODO: sprawdzanie metod
 fn check_fn(
     fdef: &ast::Node<ast::FunDef>,
     cfenv: &CFEnv,
