@@ -69,6 +69,11 @@ fn undeclared_var_msg(lexer: &dyn Lexer<u32>, span: &Span) -> String {
     wrap_error_msg(lexer, span, "use of undeclared variable")
 }
 
+fn no_such_msg(lexer: &dyn Lexer<u32>, span: &Span, entity: &str) -> String {
+    let msg = format!("such {} does not exist", entity);
+    wrap_error_msg(lexer, span, &msg)
+}
+
 fn wrong_return_msg(
     expected_type: ast::Prim,
     actual_type: &ast::Prim,
@@ -232,19 +237,23 @@ fn check_expr(
     cfenv: &CFEnv,
     lexer: &dyn Lexer<u32>,
 ) -> Result<ast::Prim, String> {
-    let retval = match expr.data() {
-        ast::Expr::Dot(expr_node, ident_node) =>
+    let expr_type = match expr.data() {
+        ast::Expr::Dot(expr_node, ident_node) => {
             match check_expr(expr_node, venv, cfenv, lexer)? {
                 ast::Prim::Class(class_name) => {
-                    unimplemented!();
+                    let members = match cfenv.0.get(&class_name) {
+                        None => return Err(no_such_msg(lexer, ident_node.span(), "class")),
+                        Some((_, members)) => members,
+                    };
+                    match members.get(ident_node.data()) {
+                        None => return Err(no_such_msg(lexer, ident_node.span(), "field")),
+                        Some(ast::Type::Fun(_)) => return Err(wrap_error_msg(lexer, expr_node.span(), "left side of . is a method")),
+                        Some(ast::Type::Var(prim)) => prim.clone(),
+                    }
                 }
-                non_class_prim =>
-                    return Err(wrap_error_msg(
-                        lexer,
-                        expr_node.span(),
-                        "left side of . is not a class",
-                    ))
+                non_class_prim => return Err(wrap_error_msg(lexer, expr_node.span(), &format!("left side of . is a {:?}", non_class_prim))),
             }
+        }
         ast::Expr::Mthd(_expr_node, _ident_node, _arg_nodes) => unimplemented!(),
         ast::Expr::Fun(ident_node, expr_nodes) => {
             let (fun_type, fun_arg_types) = match cfenv.1.get(ident_node.data()) {
@@ -279,18 +288,18 @@ fn check_expr(
                 }
             }
 
-            Ok(fun_type.clone())
+            fun_type.clone()
         }
         ast::Expr::Var(ident_node) => match venv_get(venv, ident_node.data()) {
-            Some(prim) => Ok(prim),
-            None => Err(undeclared_var_msg(lexer, ident_node.span())),
+            Some(prim) => prim,
+            None => return Err(undeclared_var_msg(lexer, ident_node.span())),
         },
-        ast::Expr::Int(_) => Ok(ast::Prim::Int),
-        ast::Expr::Bool(_) => Ok(ast::Prim::Bool),
-        ast::Expr::Str(_) => Ok(ast::Prim::Str),
+        ast::Expr::Int(_) => ast::Prim::Int,
+        ast::Expr::Bool(_) => ast::Prim::Bool,
+        ast::Expr::Str(_) => ast::Prim::Str,
         ast::Expr::Not(expr_node) => match check_expr(expr_node, venv, cfenv, lexer)? {
-            ast::Prim::Bool => Ok(ast::Prim::Bool),
-            prim => Err(type_mismatch_msg(
+            ast::Prim::Bool => ast::Prim::Bool,
+            prim => return Err(type_mismatch_msg(
                 ast::Prim::Bool,
                 &prim,
                 lexer,
@@ -298,8 +307,8 @@ fn check_expr(
             )),
         },
         ast::Expr::Neg(expr_node) => match check_expr(expr_node, venv, cfenv, lexer)? {
-            ast::Prim::Int => Ok(ast::Prim::Int),
-            prim => Err(type_mismatch_msg(
+            ast::Prim::Int => ast::Prim::Int,
+            prim => return Err(type_mismatch_msg(
                 ast::Prim::Int,
                 &prim,
                 lexer,
@@ -312,8 +321,8 @@ fn check_expr(
                 check_expr(expr1_node, venv, cfenv, lexer)?,
                 check_expr(expr2_node, venv, cfenv, lexer)?,
             ) {
-                (ast::Prim::Bool, ast::Prim::Bool) => Ok(ast::Prim::Bool),
-                (prim1, prim2) => Err(wrong_operator_arguments(
+                (ast::Prim::Bool, ast::Prim::Bool) => ast::Prim::Bool,
+                (prim1, prim2) => return Err(wrong_operator_arguments(
                     &acceptable_prims,
                     (prim1, prim2),
                     lexer,
@@ -330,9 +339,9 @@ fn check_expr(
                 check_expr(expr1_node, venv, cfenv, lexer)?,
                 check_expr(expr2_node, venv, cfenv, lexer)?,
             ) {
-                (ast::Prim::Int, ast::Prim::Int) => Ok(ast::Prim::Int),
-                (ast::Prim::Str, ast::Prim::Str) => Ok(ast::Prim::Str),
-                (prim1, prim2) => Err(wrong_operator_arguments(
+                (ast::Prim::Int, ast::Prim::Int) => ast::Prim::Int,
+                (ast::Prim::Str, ast::Prim::Str) => ast::Prim::Str,
+                (prim1, prim2) => return Err(wrong_operator_arguments(
                     &acceptable_prims,
                     (prim1, prim2),
                     lexer,
@@ -349,8 +358,8 @@ fn check_expr(
                 check_expr(expr1_node, venv, cfenv, lexer)?,
                 check_expr(expr2_node, venv, cfenv, lexer)?,
             ) {
-                (ast::Prim::Int, ast::Prim::Int) => Ok(ast::Prim::Int),
-                (prim1, prim2) => Err(wrong_operator_arguments(
+                (ast::Prim::Int, ast::Prim::Int) => ast::Prim::Int,
+                (prim1, prim2) => return Err(wrong_operator_arguments(
                     &acceptable_prims,
                     (prim1, prim2),
                     lexer,
@@ -367,8 +376,8 @@ fn check_expr(
                 check_expr(expr1_node, venv, cfenv, lexer)?,
                 check_expr(expr2_node, venv, cfenv, lexer)?,
             ) {
-                (ast::Prim::Int, ast::Prim::Int) => Ok(ast::Prim::Bool),
-                (prim1, prim2) => Err(wrong_operator_arguments(
+                (ast::Prim::Int, ast::Prim::Int) => ast::Prim::Bool,
+                (prim1, prim2) => return Err(wrong_operator_arguments(
                     &acceptable_prims,
                     (prim1, prim2),
                     lexer,
@@ -385,10 +394,8 @@ fn check_expr(
                 check_expr(expr1_node, venv, cfenv, lexer)?,
                 check_expr(expr2_node, venv, cfenv, lexer)?,
             ) {
-                (ast::Prim::Bool, ast::Prim::Bool) | (ast::Prim::Int, ast::Prim::Int) => {
-                    Ok(ast::Prim::Bool)
-                }
-                (prim1, prim2) => Err(wrong_operator_arguments(
+                (ast::Prim::Bool, ast::Prim::Bool) | (ast::Prim::Int, ast::Prim::Int) => ast::Prim::Bool,
+                (prim1, prim2) => return Err(wrong_operator_arguments(
                     &acceptable_prims,
                     (prim1, prim2),
                     lexer,
@@ -397,9 +404,8 @@ fn check_expr(
             }
         }
         ast::Expr::New(ident_node)
-        | ast::Expr::Null(ident_node) => Ok(ast::Prim::Class(ident_node.data().clone())),
+        | ast::Expr::Null(ident_node) => ast::Prim::Class(ident_node.data().clone()),
     };
-    let expr_type = retval?;
     expr.set_type(&ast::Type::Var(expr_type.clone()));
     Ok(expr_type)
 }
