@@ -2,7 +2,6 @@
 // TODO: upewnić się, że testy standardowe przechodzą
 // TODO: zmienne wewnątrz klasy
 // TODO: upewnić się, że dodanie obiektów nie wymaga zmiany niczego więcej
-
 // TODO: dodanie zmiennych i funkcji z nadklas do środowiska sprawdzania metody
 
 use crate::latte_y as ast;
@@ -111,6 +110,39 @@ fn wrong_operator_arguments(
     wrap_error_msg(lexer, span, &msg)
 }
 
+fn class_members(
+    class_name: &ast::Ident,
+    cfenv: &CFEnv,
+    lexer: &dyn Lexer<u32>,
+) -> Result<(VEnv, FEnv), String> {
+    let (parent_class_name_option, members_map) = match cfenv.0.get(class_name) {
+        Some(class_def) => class_def,
+        None => return Err(format!("uncaught error: nonexistent class {}", class_name)),
+    };
+
+    let (mut class_venv, mut class_fenv) = match parent_class_name_option {
+        Some(parent_class_name) => class_members(parent_class_name, cfenv, lexer)?,
+        None => {
+            let mut venv = VEnv::new();
+            venv_enter_scope(&mut venv);
+            (venv, cfenv.1.clone())
+        }
+    };
+
+    for (member_name, member) in members_map {
+        match member {
+            ast::Type::Var(prim) => {
+                venv_insert(&mut class_venv, member_name.to_string(), prim.clone());
+            }
+            ast::Type::Fun(fun_type) => {
+                class_fenv.insert(member_name.clone(), fun_type.clone());
+            }
+        };
+    }
+
+    Ok((class_venv, class_fenv))
+}
+
 pub fn check_types(
     cfdefs: &(Vec<ast::Node<ast::ClassDef>>, Vec<ast::Node<ast::FunDef>>),
     lexer: &dyn Lexer<u32>,
@@ -120,7 +152,24 @@ pub fn check_types(
     let cfenv = (cenv, fenv);
 
     for fdef in &cfdefs.1 {
-        check_fn(fdef, &cfenv, lexer)?;
+        let mut venv = VEnv::new();
+        venv_enter_scope(&mut venv);
+
+        check_fn(fdef, &mut venv, &cfenv, lexer)?;
+    }
+
+    for cdef in &cfdefs.0 {
+        let (class_name_node, _, _, method_nodes) = cdef.data();
+        let (class_venv, class_fenv) = class_members(class_name_node.data(), &cfenv, lexer)?;
+
+        for method_node in method_nodes {
+            check_fn(
+                method_node,
+                &mut class_venv.clone(),
+                &mut (cfenv.0.clone(), class_fenv.clone()),
+                lexer,
+            )?;
+        }
     }
 
     Ok(())
@@ -652,24 +701,21 @@ fn check_stmt(
 
 fn check_fn(
     fdef: &ast::Node<ast::FunDef>,
+    venv: &mut VEnv,
     cfenv: &CFEnv,
     lexer: &dyn Lexer<u32>,
 ) -> Result<(), String> {
-    let mut venv = VEnv::new();
-    venv_enter_scope(&mut venv);
-
     let (prim_node, _, arg_nodes, block_node) = fdef.data();
     for arg_node in arg_nodes {
         let (arg_prim_node, arg_ident_node) = arg_node.data();
         let (prim, ident) = (arg_prim_node.data(), arg_ident_node.data());
-        if let Some(_) = venv_insert(&mut venv, ident.clone(), prim.clone()) {
+        if let Some(_) = venv_insert(venv, ident.clone(), prim.clone()) {
             return Err(wrap_error_msg(lexer, fdef.span(), "argument name repeated"));
         }
     }
 
     let fn_prim = prim_node.data();
-    if !check_block(block_node.data(), fn_prim, &mut venv, cfenv, lexer)?
-        && *fn_prim != ast::Prim::Void
+    if !check_block(block_node.data(), fn_prim, venv, cfenv, lexer)? && *fn_prim != ast::Prim::Void
     {
         return Err(wrap_error_msg(
             lexer,
