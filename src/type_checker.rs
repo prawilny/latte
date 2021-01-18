@@ -238,22 +238,32 @@ fn check_expr(
     lexer: &dyn Lexer<u32>,
 ) -> Result<ast::Prim, String> {
     let expr_type = match expr.data() {
-        ast::Expr::Dot(expr_node, ident_node) => {
-            match check_expr(expr_node, venv, cfenv, lexer)? {
-                ast::Prim::Class(class_name) => {
-                    let members = match cfenv.0.get(&class_name) {
-                        None => return Err(no_such_msg(lexer, ident_node.span(), "class")),
-                        Some((_, members)) => members,
-                    };
-                    match members.get(ident_node.data()) {
-                        None => return Err(no_such_msg(lexer, ident_node.span(), "field")),
-                        Some(ast::Type::Fun(_)) => return Err(wrap_error_msg(lexer, expr_node.span(), "left side of . is a method")),
-                        Some(ast::Type::Var(prim)) => prim.clone(),
+        ast::Expr::Dot(expr_node, ident_node) => match check_expr(expr_node, venv, cfenv, lexer)? {
+            ast::Prim::Class(class_name) => {
+                let members = match cfenv.0.get(&class_name) {
+                    None => return Err(no_such_msg(lexer, ident_node.span(), "class")),
+                    Some((_, members)) => members,
+                };
+                match members.get(ident_node.data()) {
+                    None => return Err(no_such_msg(lexer, ident_node.span(), "field")),
+                    Some(ast::Type::Fun(_)) => {
+                        return Err(wrap_error_msg(
+                            lexer,
+                            expr_node.span(),
+                            "left side of . is a method",
+                        ))
                     }
+                    Some(ast::Type::Var(prim)) => prim.clone(),
                 }
-                non_class_prim => return Err(wrap_error_msg(lexer, expr_node.span(), &format!("left side of . is a {:?}", non_class_prim))),
             }
-        }
+            non_class_prim => {
+                return Err(wrap_error_msg(
+                    lexer,
+                    expr_node.span(),
+                    &format!("left side of . is a {:?}", non_class_prim),
+                ))
+            }
+        },
         ast::Expr::Mthd(_expr_node, _ident_node, _arg_nodes) => unimplemented!(),
         ast::Expr::Fun(ident_node, expr_nodes) => {
             let (fun_type, fun_arg_types) = match cfenv.1.get(ident_node.data()) {
@@ -299,21 +309,25 @@ fn check_expr(
         ast::Expr::Str(_) => ast::Prim::Str,
         ast::Expr::Not(expr_node) => match check_expr(expr_node, venv, cfenv, lexer)? {
             ast::Prim::Bool => ast::Prim::Bool,
-            prim => return Err(type_mismatch_msg(
-                ast::Prim::Bool,
-                &prim,
-                lexer,
-                expr_node.span(),
-            )),
+            prim => {
+                return Err(type_mismatch_msg(
+                    ast::Prim::Bool,
+                    &prim,
+                    lexer,
+                    expr_node.span(),
+                ))
+            }
         },
         ast::Expr::Neg(expr_node) => match check_expr(expr_node, venv, cfenv, lexer)? {
             ast::Prim::Int => ast::Prim::Int,
-            prim => return Err(type_mismatch_msg(
-                ast::Prim::Int,
-                &prim,
-                lexer,
-                expr_node.span(),
-            )),
+            prim => {
+                return Err(type_mismatch_msg(
+                    ast::Prim::Int,
+                    &prim,
+                    lexer,
+                    expr_node.span(),
+                ))
+            }
         },
         ast::Expr::And(expr1_node, expr2_node) | ast::Expr::Or(expr1_node, expr2_node) => {
             let acceptable_prims = vec![(ast::Prim::Bool, ast::Prim::Bool)];
@@ -322,12 +336,14 @@ fn check_expr(
                 check_expr(expr2_node, venv, cfenv, lexer)?,
             ) {
                 (ast::Prim::Bool, ast::Prim::Bool) => ast::Prim::Bool,
-                (prim1, prim2) => return Err(wrong_operator_arguments(
-                    &acceptable_prims,
-                    (prim1, prim2),
-                    lexer,
-                    expr.span(),
-                )),
+                (prim1, prim2) => {
+                    return Err(wrong_operator_arguments(
+                        &acceptable_prims,
+                        (prim1, prim2),
+                        lexer,
+                        expr.span(),
+                    ))
+                }
             }
         }
         ast::Expr::Add(expr1_node, expr2_node) => {
@@ -341,12 +357,14 @@ fn check_expr(
             ) {
                 (ast::Prim::Int, ast::Prim::Int) => ast::Prim::Int,
                 (ast::Prim::Str, ast::Prim::Str) => ast::Prim::Str,
-                (prim1, prim2) => return Err(wrong_operator_arguments(
-                    &acceptable_prims,
-                    (prim1, prim2),
-                    lexer,
-                    expr.span(),
-                )),
+                (prim1, prim2) => {
+                    return Err(wrong_operator_arguments(
+                        &acceptable_prims,
+                        (prim1, prim2),
+                        lexer,
+                        expr.span(),
+                    ))
+                }
             }
         }
         ast::Expr::Div(expr1_node, expr2_node)
@@ -359,12 +377,14 @@ fn check_expr(
                 check_expr(expr2_node, venv, cfenv, lexer)?,
             ) {
                 (ast::Prim::Int, ast::Prim::Int) => ast::Prim::Int,
-                (prim1, prim2) => return Err(wrong_operator_arguments(
-                    &acceptable_prims,
-                    (prim1, prim2),
-                    lexer,
-                    expr.span(),
-                )),
+                (prim1, prim2) => {
+                    return Err(wrong_operator_arguments(
+                        &acceptable_prims,
+                        (prim1, prim2),
+                        lexer,
+                        expr.span(),
+                    ))
+                }
             }
         }
         ast::Expr::LTH(expr1_node, expr2_node)
@@ -377,12 +397,14 @@ fn check_expr(
                 check_expr(expr2_node, venv, cfenv, lexer)?,
             ) {
                 (ast::Prim::Int, ast::Prim::Int) => ast::Prim::Bool,
-                (prim1, prim2) => return Err(wrong_operator_arguments(
-                    &acceptable_prims,
-                    (prim1, prim2),
-                    lexer,
-                    expr.span(),
-                )),
+                (prim1, prim2) => {
+                    return Err(wrong_operator_arguments(
+                        &acceptable_prims,
+                        (prim1, prim2),
+                        lexer,
+                        expr.span(),
+                    ))
+                }
             }
         }
         ast::Expr::NEQ(expr1_node, expr2_node) | ast::Expr::EQ(expr1_node, expr2_node) => {
@@ -394,17 +416,22 @@ fn check_expr(
                 check_expr(expr1_node, venv, cfenv, lexer)?,
                 check_expr(expr2_node, venv, cfenv, lexer)?,
             ) {
-                (ast::Prim::Bool, ast::Prim::Bool) | (ast::Prim::Int, ast::Prim::Int) => ast::Prim::Bool,
-                (prim1, prim2) => return Err(wrong_operator_arguments(
-                    &acceptable_prims,
-                    (prim1, prim2),
-                    lexer,
-                    expr.span(),
-                )),
+                (ast::Prim::Bool, ast::Prim::Bool) | (ast::Prim::Int, ast::Prim::Int) => {
+                    ast::Prim::Bool
+                }
+                (prim1, prim2) => {
+                    return Err(wrong_operator_arguments(
+                        &acceptable_prims,
+                        (prim1, prim2),
+                        lexer,
+                        expr.span(),
+                    ))
+                }
             }
         }
-        ast::Expr::New(ident_node)
-        | ast::Expr::Null(ident_node) => ast::Prim::Class(ident_node.data().clone()),
+        ast::Expr::New(ident_node) | ast::Expr::Null(ident_node) => {
+            ast::Prim::Class(ident_node.data().clone())
+        }
     };
     expr.set_type(&ast::Type::Var(expr_type.clone()));
     Ok(expr_type)
@@ -615,18 +642,26 @@ fn check_fn(
     Ok(())
 }
 
-fn class_env(cdefs: &Vec<ast::Node<ast::ClassDef>>, lexer: &dyn Lexer<u32>) -> Result<CEnv, String> {
+fn class_env(
+    cdefs: &Vec<ast::Node<ast::ClassDef>>,
+    lexer: &dyn Lexer<u32>,
+) -> Result<CEnv, String> {
     let mut cenv: CEnv = HashMap::new();
     for cdef in cdefs {
         let (ident_node, parent_ident_node_option, field_nodes, method_nodes) = cdef.data();
 
-        let parent_ident_option = parent_ident_node_option.as_ref().map(|pino| pino.data().to_string());
+        let parent_ident_option = parent_ident_node_option
+            .as_ref()
+            .map(|pino| pino.data().to_string());
 
         let mut members: HashMap<ast::Ident, ast::Type> = HashMap::new();
 
         for field_node in field_nodes {
             let (prim_node, ident_node) = field_node.data();
-            if let Some(_) = members.insert(ident_node.data().to_string(), ast::Type::Var(prim_node.data().clone())) {
+            if let Some(_) = members.insert(
+                ident_node.data().to_string(),
+                ast::Type::Var(prim_node.data().clone()),
+            ) {
                 return Err(wrap_error_msg(
                     lexer,
                     ident_node.span(),
@@ -639,7 +674,10 @@ fn class_env(cdefs: &Vec<ast::Node<ast::ClassDef>>, lexer: &dyn Lexer<u32>) -> R
             let (prim_node, ident_node, arg_nodes, _) = method_node.data();
             let arg_types = arg_types(arg_nodes, lexer)?;
 
-            if let Some(_) = members.insert(ident_node.data().to_string(), ast::Type::Fun((prim_node.data().clone(), arg_types))) {
+            if let Some(_) = members.insert(
+                ident_node.data().to_string(),
+                ast::Type::Fun((prim_node.data().clone(), arg_types)),
+            ) {
                 return Err(wrap_error_msg(
                     lexer,
                     ident_node.span(),
@@ -648,7 +686,10 @@ fn class_env(cdefs: &Vec<ast::Node<ast::ClassDef>>, lexer: &dyn Lexer<u32>) -> R
             }
         }
 
-        if let Some(_) = cenv.insert(ident_node.data().to_string(), (parent_ident_option, members)) {
+        if let Some(_) = cenv.insert(
+            ident_node.data().to_string(),
+            (parent_ident_option, members),
+        ) {
             return Err(wrap_error_msg(
                 lexer,
                 ident_node.span(),
@@ -659,7 +700,10 @@ fn class_env(cdefs: &Vec<ast::Node<ast::ClassDef>>, lexer: &dyn Lexer<u32>) -> R
     Ok(cenv)
 }
 
-fn arg_types(arg_nodes: &Vec<ast::Node<ast::Arg>>, lexer: &dyn Lexer<u32>) -> Result<Vec<ast::Prim>, String> {
+fn arg_types(
+    arg_nodes: &Vec<ast::Node<ast::Arg>>,
+    lexer: &dyn Lexer<u32>,
+) -> Result<Vec<ast::Prim>, String> {
     let mut arg_types = Vec::new();
     for arg_node in arg_nodes {
         let (arg_prim_node, _) = arg_node.data();
