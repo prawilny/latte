@@ -231,6 +231,40 @@ fn expr_int(
     }
 }
 
+fn check_call(
+    fun: &ast::FunType,
+    ident_node: &ast::Node<ast::Ident>,
+    arg_nodes: &Vec<ast::Node<ast::Expr>>,
+    venv: &VEnv,
+    cfenv: &CFEnv,
+    lexer: &dyn Lexer<u32>,
+) -> Result<ast::Prim, String> {
+    let (fun_type, fun_arg_types) = fun;
+
+    if fun_arg_types.len() != arg_nodes.len() {
+        let msg = format!(
+            "use of {}-argument function or method with {} arguments",
+            fun_arg_types.len(),
+            arg_nodes.len()
+        );
+        return Err(wrap_error_msg(lexer, ident_node.span(), &msg));
+    }
+
+    for (arg_prim, expr_node) in fun_arg_types.iter().zip(arg_nodes.iter()) {
+        let expr_prim = check_expr(expr_node, venv, cfenv, lexer)?;
+        if expr_prim != *arg_prim {
+            return Err(type_mismatch_msg(
+                arg_prim.clone(),
+                &expr_prim,
+                lexer,
+                expr_node.span(),
+            ));
+        }
+    }
+
+    Ok(fun_type.clone())
+}
+
 fn check_expr(
     expr: &ast::Node<ast::Expr>,
     venv: &VEnv,
@@ -246,14 +280,14 @@ fn check_expr(
                 };
                 match members.get(ident_node.data()) {
                     None => return Err(no_such_msg(lexer, ident_node.span(), "field")),
+                    Some(ast::Type::Var(prim)) => prim.clone(),
                     Some(ast::Type::Fun(_)) => {
                         return Err(wrap_error_msg(
                             lexer,
                             expr_node.span(),
-                            "left side of . is a method",
+                            "right side of . is a method",
                         ))
                     }
-                    Some(ast::Type::Var(prim)) => prim.clone(),
                 }
             }
             non_class_prim => {
@@ -264,9 +298,38 @@ fn check_expr(
                 ))
             }
         },
-        ast::Expr::Mthd(_expr_node, _ident_node, _arg_nodes) => unimplemented!(),
-        ast::Expr::Fun(ident_node, expr_nodes) => {
-            let (fun_type, fun_arg_types) = match cfenv.1.get(ident_node.data()) {
+        ast::Expr::Mthd(expr_node, ident_node, arg_nodes) => {
+            match check_expr(expr_node, venv, cfenv, lexer)? {
+                ast::Prim::Class(class_name) => {
+                    let members = match cfenv.0.get(&class_name) {
+                        None => return Err(no_such_msg(lexer, ident_node.span(), "class")),
+                        Some((_, members)) => members,
+                    };
+                    match members.get(ident_node.data()) {
+                        None => return Err(no_such_msg(lexer, ident_node.span(), "field")),
+                        Some(ast::Type::Var(_)) => {
+                            return Err(wrap_error_msg(
+                                lexer,
+                                expr_node.span(),
+                                "right side of . is a field",
+                            ))
+                        }
+                        Some(ast::Type::Fun(fun_type)) => {
+                            check_call(fun_type, ident_node, arg_nodes, venv, cfenv, lexer)?
+                        }
+                    }
+                }
+                non_class_prim => {
+                    return Err(wrap_error_msg(
+                        lexer,
+                        expr_node.span(),
+                        &format!("left side of . is a {:?}", non_class_prim),
+                    ))
+                }
+            }
+        }
+        ast::Expr::Fun(ident_node, arg_nodes) => {
+            let fun_type = match cfenv.1.get(ident_node.data()) {
                 None => {
                     return Err(wrap_error_msg(
                         lexer,
@@ -276,29 +339,7 @@ fn check_expr(
                 }
                 Some(ft) => ft,
             };
-
-            if fun_arg_types.len() != expr_nodes.len() {
-                let msg = format!(
-                    "use of {}-argument function with {} arguments",
-                    fun_arg_types.len(),
-                    expr_nodes.len()
-                );
-                return Err(wrap_error_msg(lexer, ident_node.span(), &msg));
-            }
-
-            for (arg_prim, expr_node) in fun_arg_types.iter().zip(expr_nodes.iter()) {
-                let expr_prim = check_expr(expr_node, venv, cfenv, lexer)?;
-                if expr_prim != *arg_prim {
-                    return Err(type_mismatch_msg(
-                        arg_prim.clone(),
-                        &expr_prim,
-                        lexer,
-                        expr_node.span(),
-                    ));
-                }
-            }
-
-            fun_type.clone()
+            check_call(fun_type, ident_node, arg_nodes, venv, cfenv, lexer)?
         }
         ast::Expr::Var(ident_node) => match venv_get(venv, ident_node.data()) {
             Some(prim) => prim,
