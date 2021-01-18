@@ -1,8 +1,6 @@
 // TODO: sprawdzić "_", unimplemented!, unreachable!
 // TODO: upewnić się, że testy standardowe przechodzą
-// TODO: zmienne wewnątrz klasy
 // TODO: upewnić się, że dodanie obiektów nie wymaga zmiany niczego więcej
-// TODO: dodanie zmiennych i funkcji z nadklas do środowiska sprawdzania metody
 
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
@@ -117,7 +115,7 @@ fn class_members(
 ) -> Result<(VEnv, FEnv), String> {
     let (parent_class_name_option, members_map) = match cfenv.0.get(class_name) {
         Some(class_def) => class_def,
-        None => return Err(format!("uncaught error: nonexistent class {}", class_name)),
+        None => return Err(format!("nonexistent class {}", class_name)),
     };
 
     let (mut class_venv, mut class_fenv) = match parent_class_name_option {
@@ -780,6 +778,16 @@ fn class_env(
                 ident_node.span(),
                 "class name not unique",
             ));
+        }
+    }
+    for (class_name, (parent_class_name_option, _)) in &cenv {
+        if let Some(parent_class_name) = parent_class_name_option {
+            if let None = cenv.get(parent_class_name) {
+                return Err(format!(
+                    "class {} inherits from nonexistant class {}",
+                    class_name, parent_class_name
+                ));
+            }
         }
     }
     Ok(cenv)
