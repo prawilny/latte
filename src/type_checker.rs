@@ -1,6 +1,4 @@
 // TODO: sprawdzić "_", unimplemented!, unreachable!
-// TODO: sprawdzenie metod (parametr this w check_* ?)
-// TODO: README o castach i ")null"
 // TODO: upewnić się, że testy standardowe przechodzą
 // TODO: zmienne wewnątrz klasy
 // TODO: upewnić się, że dodanie obiektów nie wymaga zmiany niczego więcej

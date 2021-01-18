@@ -11,6 +11,8 @@ gramatyka języka w łańcucach ifów o pojedynczych instrukcjach wymusza taką 
 właściwą instrukcją jest `if (true) if (false) ; else ; else ;`,
 niewłaściwą zaś: `if (true) if (false) ; else ;`.
 
+Dla uproszczenia kodu ograniczyłem casty (przy zachowaniu kompatybilności z publicznuymi testami):
+")null" stanowi pojedynczy token, więc nie można zrobić `( class ) null`.
 
 Uwagi do kompilatora
 ========================================
