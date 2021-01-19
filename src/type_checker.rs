@@ -4,6 +4,8 @@
 // TODO: priorytet '.'
 // TODO: sprawdzenie gramatyki
 // TOOD: możliwość override'a metody (w tym momencie "method name not unique")
+// TODO: self w metodach (jak w kompilatorze: dodać argument)
+// TODO: tworzenie Point2 p2 = new Point3
 
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
@@ -502,11 +504,16 @@ fn check_expr(
             let acceptable_prims = vec![
                 (ast::Prim::Bool, ast::Prim::Bool),
                 (ast::Prim::Int, ast::Prim::Int),
+                (
+                    ast::Prim::Class("C".to_string()),
+                    ast::Prim::Class("C".to_string()),
+                ),
             ];
             match (
                 check_expr(expr1_node, venv, cfenv, lexer)?,
                 check_expr(expr2_node, venv, cfenv, lexer)?,
             ) {
+                (ast::Prim::Class(c1), ast::Prim::Class(c2)) if c1 == c2 => ast::Prim::Bool,
                 (ast::Prim::Bool, ast::Prim::Bool) | (ast::Prim::Int, ast::Prim::Int) => {
                     ast::Prim::Bool
                 }

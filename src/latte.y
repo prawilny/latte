@@ -69,7 +69,7 @@ Members -> Result<Vec<Member>, ()>:
         Ok(members)
       }
     |
-      Members PrimIdent '(' Args ')' Block ';' {
+      Members PrimIdent '(' Args ')' Block {
         let mut members = $1?;
         let prim_ident = $2?;
         let block = $6.map_err(|_| ())?;
@@ -301,6 +301,11 @@ Prim -> Result<Node<Prim>, ()>:
       'VOID' {
         let p = $1.map_err(|_| ())?;
         Ok(Node::new(p.span(), Prim::Void))
+      }
+    |
+      Ident {
+        let ident = $1?;
+        Ok(Node::new(*ident.span(), Prim::Class(ident.data().to_string())))
       }
     ;
 
