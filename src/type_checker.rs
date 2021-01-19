@@ -5,7 +5,6 @@
 // TODO: sprawdzenie gramatyki
 // TOOD: możliwość override'a metody (w tym momencie "method name not unique")
 
-
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
 use crate::Span;
@@ -618,31 +617,63 @@ fn check_stmt(
                 }
                 ast::Expr::Dot(dot_lhs_node, dot_rhs_node) => {
                     let field_name = dot_rhs_node.data();
-                    // match check_expr(dot_lhs_node, venv, cfenv, lexer)? {
-                    //     ast::Prim::Class(class_name) => {
-                    //         let members_map = match cfenv.0.get(class_name) {
-                    //             Some((_, members_map)) => members_map,
-                    //             _ => unreachable!!(),
-                    //         };
-                    //         unimplemented!()
-                    //     }
-                    //     non_class_prim => {
-                    //         return Err(wrap_error_msg(
-                    //             lexer,
-                    //             expr_node.span(),
-                    //             &format!("left side of . is a {:?}", non_class_prim),
-                    //         ))
-                    //     }
-                    // }
-                    unimplemented!()
-                },
-                _other_expr_data => return Err(wrap_error_msg(
-                    lexer,
-                    lhs_node.span(),
-                    &format!("left side of = is not a variable nor a field"),
-                )),
+                    match check_expr(dot_lhs_node, venv, cfenv, lexer)? {
+                        ast::Prim::Class(class_name) => {
+                            let members_map = match cfenv.0.get(&class_name) {
+                                Some(members_map) => members_map,
+                                None => {
+                                    return Err(wrap_error_msg(
+                                        lexer,
+                                        dot_lhs_node.span(),
+                                        "cannot find class' members",
+                                    ));
+                                }
+                            };
+                            match members_map.get(field_name) {
+                                Some(ast::Type::Var(field_prim)) if *field_prim == expr_prim => {
+                                    Ok(false)
+                                }
+                                Some(ast::Type::Var(field_prim)) => {
+                                    return Err(type_mismatch_msg(
+                                        field_prim.clone(),
+                                        &expr_prim,
+                                        lexer,
+                                        expr_node.span(),
+                                    ));
+                                }
+                                Some(ast::Type::Fun(_)) => {
+                                    return Err(wrap_error_msg(
+                                        lexer,
+                                        lhs_node.span(),
+                                        "assignment to method",
+                                    ));
+                                }
+                                None => {
+                                    return Err(wrap_error_msg(
+                                        lexer,
+                                        lhs_node.span(),
+                                        "assignment to nonexistent field",
+                                    ));
+                                }
+                            }
+                        }
+                        non_class_prim => {
+                            return Err(wrap_error_msg(
+                                lexer,
+                                expr_node.span(),
+                                &format!("left side of . is a {:?}", non_class_prim),
+                            ))
+                        }
+                    }
+                }
+                _other_expr_data => {
+                    return Err(wrap_error_msg(
+                        lexer,
+                        lhs_node.span(),
+                        &format!("left side of = is not a variable nor a field"),
+                    ))
+                }
             }
-
         }
         ast::Stmt::Incr(ident_node) | ast::Stmt::Decr(ident_node) => {
             let ident = ident_node.data().clone();
@@ -769,7 +800,13 @@ fn register_class_in_env(
 ) -> Result<(), String> {
     let cdef = match cdefs.get(ident_node.data()) {
         Some(cdef) => cdef,
-        None => return Err(wrap_error_msg(lexer, ident_node.span(), "nonexistent parent class")),
+        None => {
+            return Err(wrap_error_msg(
+                lexer,
+                ident_node.span(),
+                "nonexistent parent class",
+            ))
+        }
     };
     let (self_ident_node, parent_ident_node_option, field_nodes, method_nodes) = cdef.data();
 
