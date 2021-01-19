@@ -3,9 +3,8 @@
 // TODO: upewnić się, że dodanie obiektów nie wymaga zmiany niczego więcej
 // TODO: priorytet '.'
 // TODO: sprawdzenie gramatyki
-// TODO: uniemożliwianie powtarzania się nazw pól
-// TODO: tworzenie środowiska klas w kolejności dziedziczenia
-// TODO: type CEnv = HashMap<ast::Ident, HashMap<ast::Ident, ast::Type>>;
+// TOOD: możliwość override'a metody (w tym momencie "method name not unique")
+
 
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
@@ -13,7 +12,8 @@ use crate::Span;
 use ::lrpar::NonStreamingLexer as Lexer;
 use std::collections::HashMap;
 
-type CEnv = HashMap<ast::Ident, (Option<ast::Ident>, HashMap<ast::Ident, ast::Type>)>;
+type CMembers = HashMap<ast::Ident, ast::Type>;
+type CEnv = HashMap<ast::Ident, CMembers>;
 type FEnv = HashMap<ast::Ident, ast::FunType>;
 type VEnv = Vec<HashMap<ast::Ident, ast::Prim>>;
 type CFEnv = (CEnv, FEnv);
@@ -113,24 +113,25 @@ fn wrong_operator_arguments(
     wrap_error_msg(lexer, span, &msg)
 }
 
-fn class_members(
-    class_name: &ast::Ident,
+fn method_vfenv(
+    self_name_node: &ast::Node<ast::Ident>,
     cfenv: &CFEnv,
     lexer: &dyn Lexer<u32>,
 ) -> Result<(VEnv, FEnv), String> {
-    let (parent_class_name_option, members_map) = match cfenv.0.get(class_name) {
-        Some(class_def) => class_def,
-        None => return Err(format!("nonexistent class {}", class_name)),
-    };
-
-    let (mut class_venv, mut class_fenv) = match parent_class_name_option {
-        Some(parent_class_name) => class_members(parent_class_name, cfenv, lexer)?,
+    let members_map = match cfenv.0.get(self_name_node.data()) {
+        Some(members_map) => members_map,
         None => {
-            let mut venv = VEnv::new();
-            venv_enter_scope(&mut venv);
-            (venv, cfenv.1.clone())
+            return Err(wrap_error_msg(
+                lexer,
+                self_name_node.span(),
+                "nonexistent class",
+            ))
         }
     };
+
+    let mut class_fenv = cfenv.1.clone();
+    let mut class_venv = VEnv::new();
+    venv_enter_scope(&mut class_venv);
 
     for (member_name, member) in members_map {
         match member {
@@ -163,7 +164,7 @@ pub fn check_types(
 
     for cdef in &cfdefs.0 {
         let (class_name_node, _, _, method_nodes) = cdef.data();
-        let (class_venv, class_fenv) = class_members(class_name_node.data(), &cfenv, lexer)?;
+        let (class_venv, class_fenv) = method_vfenv(class_name_node, &cfenv, lexer)?;
 
         for method_node in method_nodes {
             check_fn(
@@ -326,7 +327,7 @@ fn check_expr(
             ast::Prim::Class(class_name) => {
                 let members = match cfenv.0.get(&class_name) {
                     None => return Err(no_such_msg(lexer, ident_node.span(), "class")),
-                    Some((_, members)) => members,
+                    Some(members) => members,
                 };
                 match members.get(ident_node.data()) {
                     None => return Err(no_such_msg(lexer, ident_node.span(), "field")),
@@ -353,7 +354,7 @@ fn check_expr(
                 ast::Prim::Class(class_name) => {
                     let members = match cfenv.0.get(&class_name) {
                         None => return Err(no_such_msg(lexer, ident_node.span(), "class")),
-                        Some((_, members)) => members,
+                        Some(members) => members,
                     };
                     match members.get(ident_node.data()) {
                         None => return Err(no_such_msg(lexer, ident_node.span(), "field")),
@@ -760,70 +761,88 @@ fn check_fn(
     Ok(())
 }
 
+fn register_class_in_env(
+    ident_node: &ast::Node<ast::Ident>,
+    cenv: &mut CEnv,
+    cdefs: &HashMap<ast::Ident, ast::Node<ast::ClassDef>>,
+    lexer: &dyn Lexer<u32>,
+) -> Result<(), String> {
+    let cdef = match cdefs.get(ident_node.data()) {
+        Some(cdef) => cdef,
+        None => return Err(wrap_error_msg(lexer, ident_node.span(), "nonexistent parent class")),
+    };
+    let (self_ident_node, parent_ident_node_option, field_nodes, method_nodes) = cdef.data();
+
+    if let Some(_) = cenv.get(self_ident_node.data()) {
+        return Ok(());
+    }
+
+    if let Some(parent_ident_node) = parent_ident_node_option {
+        match cenv.get(parent_ident_node.data()) {
+            Some(_) => (),
+            None => register_class_in_env(parent_ident_node, cenv, cdefs, lexer)?,
+        };
+    }
+
+    let mut members = match parent_ident_node_option {
+        Some(parent_ident_node) => cenv.get(parent_ident_node.data()).unwrap().clone(),
+        None => HashMap::new(),
+    };
+
+    for field_node in field_nodes {
+        let (prim_node, ident_node) = field_node.data();
+        if let Some(_) = members.insert(
+            ident_node.data().to_string(),
+            ast::Type::Var(prim_node.data().clone()),
+        ) {
+            return Err(wrap_error_msg(
+                lexer,
+                ident_node.span(),
+                "field name not unique",
+            ));
+        }
+    }
+
+    for method_node in method_nodes {
+        let (prim_node, ident_node, arg_nodes, _) = method_node.data();
+        let arg_types = arg_types(arg_nodes, lexer)?;
+
+        if let Some(_) = members.insert(
+            ident_node.data().to_string(),
+            ast::Type::Fun((prim_node.data().clone(), arg_types)),
+        ) {
+            return Err(wrap_error_msg(
+                lexer,
+                ident_node.span(),
+                "method name not unique",
+            ));
+        }
+    }
+
+    cenv.insert(self_ident_node.data().to_string(), members);
+    Ok(())
+}
+
 fn class_env(
     cdefs: &Vec<ast::Node<ast::ClassDef>>,
     lexer: &dyn Lexer<u32>,
 ) -> Result<CEnv, String> {
     let mut cenv: CEnv = HashMap::new();
+    let mut cdefs_map: HashMap<ast::Ident, ast::Node<ast::ClassDef>> = HashMap::new();
     for cdef in cdefs {
-        let (ident_node, parent_ident_node_option, field_nodes, method_nodes) = cdef.data();
-
-        let parent_ident_option = parent_ident_node_option
-            .as_ref()
-            .map(|pino| pino.data().to_string());
-
-        let mut members: HashMap<ast::Ident, ast::Type> = HashMap::new();
-
-        for field_node in field_nodes {
-            let (prim_node, ident_node) = field_node.data();
-            if let Some(_) = members.insert(
-                ident_node.data().to_string(),
-                ast::Type::Var(prim_node.data().clone()),
-            ) {
+        match cdefs_map.insert(cdef.data().0.data().clone(), cdef.clone()) {
+            None => (),
+            Some(class_def_node) => {
                 return Err(wrap_error_msg(
                     lexer,
-                    ident_node.span(),
-                    "field name not unique",
+                    class_def_node.span(),
+                    "class name not unique",
                 ));
             }
-        }
-
-        for method_node in method_nodes {
-            let (prim_node, ident_node, arg_nodes, _) = method_node.data();
-            let arg_types = arg_types(arg_nodes, lexer)?;
-
-            if let Some(_) = members.insert(
-                ident_node.data().to_string(),
-                ast::Type::Fun((prim_node.data().clone(), arg_types)),
-            ) {
-                return Err(wrap_error_msg(
-                    lexer,
-                    ident_node.span(),
-                    "field name not unique",
-                ));
-            }
-        }
-
-        if let Some(_) = cenv.insert(
-            ident_node.data().to_string(),
-            (parent_ident_option, members),
-        ) {
-            return Err(wrap_error_msg(
-                lexer,
-                ident_node.span(),
-                "class name not unique",
-            ));
         }
     }
-    for (class_name, (parent_class_name_option, _)) in &cenv {
-        if let Some(parent_class_name) = parent_class_name_option {
-            if let None = cenv.get(parent_class_name) {
-                return Err(format!(
-                    "class {} inherits from nonexistant class {}",
-                    class_name, parent_class_name
-                ));
-            }
-        }
+    for cdef in cdefs {
+        register_class_in_env(&cdef.data().0, &mut cenv, &cdefs_map, lexer)?;
     }
     Ok(cenv)
 }
