@@ -433,7 +433,7 @@ SimpleStmt -> Result<Node<Stmt>, ()>:
         Ok(Node::new(Span::new(prim.span().start(), semi.span().end()), Stmt::Decl(prim, items)))
       }
     |
-      Ident '=' Expr ';' {
+      Expr '=' Expr ';' {
         Ok(Node::new(join_ast_spans(&$1, &$3)?, Stmt::Asgn($1?, $3?)))
       }
     |
@@ -535,7 +535,7 @@ pub enum Stmt {
     Empty,
     Block(Node<Block>),
     Decl(Node<Prim>, Vec<Node<Item>>),
-    Asgn(Node<Ident>, Node<Expr>),
+    Asgn(Node<Expr>, Node<Expr>),
     Incr(Node<Ident>),
     Decr(Node<Ident>),
     Ret(Node<Expr>),

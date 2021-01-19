@@ -1,6 +1,11 @@
 // TODO: sprawdzić "_", unimplemented!, unreachable!
 // TODO: upewnić się, że testy standardowe przechodzą
 // TODO: upewnić się, że dodanie obiektów nie wymaga zmiany niczego więcej
+// TODO: priorytet '.'
+// TODO: sprawdzenie gramatyki
+// TODO: uniemożliwianie powtarzania się nazw pól
+// TODO: tworzenie środowiska klas w kolejności dziedziczenia
+// TODO: type CEnv = HashMap<ast::Ident, HashMap<ast::Ident, ast::Type>>;
 
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
@@ -590,23 +595,53 @@ fn check_stmt(
             }
             Ok(false)
         }
-        ast::Stmt::Asgn(ident_node, expr_node) => {
+        ast::Stmt::Asgn(lhs_node, expr_node) => {
             let expr_prim = check_expr(&expr_node, &mut venv, cfenv, lexer)?;
-            match venv_insert(venv, ident_node.data().clone(), expr_prim.clone()) {
-                Some(var_prim) => {
-                    if var_prim == expr_prim {
-                        Ok(false)
-                    } else {
-                        Err(type_mismatch_msg(
-                            var_prim,
-                            &expr_prim,
-                            lexer,
-                            expr_node.span(),
-                        ))
+            match lhs_node.data() {
+                ast::Expr::Var(ident_node) => {
+                    match venv_insert(venv, ident_node.data().clone(), expr_prim.clone()) {
+                        Some(var_prim) => {
+                            if var_prim == expr_prim {
+                                Ok(false)
+                            } else {
+                                Err(type_mismatch_msg(
+                                    var_prim,
+                                    &expr_prim,
+                                    lexer,
+                                    expr_node.span(),
+                                ))
+                            }
+                        }
+                        None => Err(undeclared_var_msg(lexer, ident_node.span())),
                     }
                 }
-                None => Err(undeclared_var_msg(lexer, ident_node.span())),
+                ast::Expr::Dot(dot_lhs_node, dot_rhs_node) => {
+                    let field_name = dot_rhs_node.data();
+                    // match check_expr(dot_lhs_node, venv, cfenv, lexer)? {
+                    //     ast::Prim::Class(class_name) => {
+                    //         let members_map = match cfenv.0.get(class_name) {
+                    //             Some((_, members_map)) => members_map,
+                    //             _ => unreachable!!(),
+                    //         };
+                    //         unimplemented!()
+                    //     }
+                    //     non_class_prim => {
+                    //         return Err(wrap_error_msg(
+                    //             lexer,
+                    //             expr_node.span(),
+                    //             &format!("left side of . is a {:?}", non_class_prim),
+                    //         ))
+                    //     }
+                    // }
+                    unimplemented!()
+                },
+                _other_expr_data => return Err(wrap_error_msg(
+                    lexer,
+                    lhs_node.span(),
+                    &format!("left side of = is not a variable nor a field"),
+                )),
             }
+
         }
         ast::Stmt::Incr(ident_node) | ast::Stmt::Decr(ident_node) => {
             let ident = ident_node.data().clone();
