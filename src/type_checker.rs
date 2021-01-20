@@ -158,11 +158,11 @@ fn wrong_operator_arguments(
     wrap_error_msg(lexer, span, &msg)
 }
 
-fn method_vfenv(
+fn method_venv(
     self_name_node: &ast::Node<ast::Ident>,
     cfienv: &CFIEnv,
     lexer: &dyn Lexer<u32>,
-) -> Result<(VEnv, FEnv), String> {
+) -> Result<VEnv, String> {
     let members_map = match cfienv.0.get(self_name_node.data()) {
         Some(members_map) => members_map,
         None => {
@@ -174,22 +174,14 @@ fn method_vfenv(
         }
     };
 
-    let mut class_fenv = cfienv.1.clone();
     let mut class_venv = VEnv::new();
     venv_enter_scope(&mut class_venv);
-
     for (member_name, member) in members_map {
-        match member {
-            ast::Type::Var(prim) => {
-                venv_insert(&mut class_venv, member_name.to_string(), prim.clone());
-            }
-            ast::Type::Fun(fun_type) => {
-                class_fenv.insert(member_name.clone(), fun_type.clone());
-            }
-        };
+        if let ast::Type::Var(prim) = member {
+            venv_insert(&mut class_venv, member_name.to_string(), prim.clone());
+        }
     }
-
-    Ok((class_venv, class_fenv))
+    Ok(class_venv)
 }
 
 pub fn check_types(
@@ -209,13 +201,13 @@ pub fn check_types(
 
     for cdef in &cfdefs.0 {
         let (class_name_node, _, _, method_nodes) = cdef.data();
-        let (class_venv, class_fenv) = method_vfenv(class_name_node, &cfienv, lexer)?;
+        let class_venv = method_venv(class_name_node, &cfienv, lexer)?;
 
         for method_node in method_nodes {
             check_fn(
                 method_node,
                 &mut class_venv.clone(),
-                &mut (cfienv.0.clone(), class_fenv.clone(), cfienv.2.clone()),
+                &mut (cfienv.0.clone(), cfienv.1.clone(), cfienv.2.clone()),
                 lexer,
             )?;
         }
@@ -402,7 +394,7 @@ fn check_expr(
                         Some(members) => members,
                     };
                     match members.get(ident_node.data()) {
-                        None => return Err(no_such_msg(lexer, ident_node.span(), "field")),
+                        None => return Err(no_such_msg(lexer, ident_node.span(), "member")),
                         Some(ast::Type::Var(_)) => {
                             return Err(wrap_error_msg(
                                 lexer,
@@ -413,7 +405,7 @@ fn check_expr(
                         Some(ast::Type::Fun(fun_type)) => {
                             let mut arg_nodes_with_self = arg_nodes.clone();
                             arg_nodes_with_self.insert(0, *(expr_node.clone())); // this
-                            check_call(fun_type, ident_node, arg_nodes, venv, cfienv, lexer)?
+                            check_call(fun_type, ident_node, &arg_nodes_with_self, venv, cfienv, lexer)?
                         }
                     }
                 }
@@ -924,7 +916,7 @@ fn register_class_in_env(
     for method_node in method_nodes {
         let (prim_node, ident_node, arg_nodes, _) = method_node.data();
         let mut arg_types = arg_types(arg_nodes, lexer)?;
-        arg_types.insert(0, ast::Prim::Class(ident_node.data().to_string())); // this
+        arg_types.insert(0, ast::Prim::Class(self_ident_node.data().to_string())); // this
 
         let new_type = ast::Type::Fun((prim_node.data().clone(), arg_types));
 
