@@ -8,20 +8,67 @@
 // TODO: tworzenie Point2 p2 = new Point3
 // TODO: czy powinniśmy móc porównywać obiekty o typach Dziecko i Rodzic?
 // TODO: opis sposobu castów (implicite) w README
+// TODO: czy równości na typach powinny brać pod uwagę bycie podklasami?
+// TODO: IEnv, wrapper na porównywanie typów
+// TOOD: skasować PartialEQ z prim/type i stworzyć własne
+// TOOD: przenieść IEnv do
+// TODO: czy type_checker musi przekazywać rzeczy do kompilatora?
 
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
 use crate::Span;
 use ::lrpar::NonStreamingLexer as Lexer;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 type CMembers = HashMap<ast::Ident, ast::Type>;
 type CEnv = HashMap<ast::Ident, CMembers>;
 type FEnv = HashMap<ast::Ident, ast::FunType>;
 type VEnv = Vec<HashMap<ast::Ident, ast::Prim>>;
+type IEnv = HashMap<ast::Ident, HashSet<ast::Ident>>;
 type CFEnv = (CEnv, FEnv);
 
 use ast::SELF_IDENT;
+
+fn is_subclass(child: &ast::Ident, parent: &ast::Ident, ienv: &IEnv) -> bool {
+    match ienv.get(child) {
+        None => false,
+        Some(superclasses) => superclasses.get(parent).is_some(),
+    }
+}
+
+fn cmp_prims(expected: &ast::Prim, actual: &ast::Prim, ienv: &IEnv) -> bool {
+    // TODO: czy matchowane typy się zgadzają
+    match (expected, actual) {
+        (ast::Prim::Int, ast::Prim::Int) => true,
+        (ast::Prim::Str, ast::Prim::Str) => true,
+        (ast::Prim::Bool, ast::Prim::Bool) => true,
+        (ast::Prim::Void, ast::Prim::Void) => true,
+        (ast::Prim::Class(c1), ast::Prim::Class(c2)) if c1 == c2 => true,
+        (ast::Prim::Class(c1), ast::Prim::Class(c2)) if is_subclass(&c2, &c1, ienv) => true,
+        _ => false,
+    }
+}
+
+fn cmp_types(expected: &ast::Type, actual: &ast::Type, ienv: &IEnv) -> bool {
+    match (expected, actual) {
+        (ast::Type::Var(exp_prim), ast::Type::Var(act_prim)) => cmp_prims(exp_prim, act_prim, ienv),
+        (ast::Type::Fun((exp_prim, exp_arg_prims)), ast::Type::Fun((act_prim, act_arg_prims))) => {
+            cmp_prims(exp_prim, act_prim, ienv) && {
+                if exp_arg_prims.len() == act_arg_prims.len() {
+                    let cmps: Vec<bool> = exp_arg_prims.iter().zip(act_arg_prims.iter()).map(
+                        |(exp_arg_prim, act_arg_prim)| {
+                            return cmp_prims(exp_arg_prim, act_arg_prim, ienv);
+                        }
+                    ).collect();
+                    cmps.iter().all(|b| *b)
+                } else {
+                    false
+                }
+            }
+        }
+        _ => false,
+    }
+}
 
 fn venv_get_in_scope(venv: &VEnv, key: &ast::Ident) -> Option<ast::Prim> {
     match venv.last().unwrap().get(key) {
@@ -156,7 +203,7 @@ pub fn check_types(
     cfdefs: &(Vec<ast::Node<ast::ClassDef>>, Vec<ast::Node<ast::FunDef>>),
     lexer: &dyn Lexer<u32>,
 ) -> Result<(), String> {
-    let cenv = class_env(&cfdefs.0, lexer)?;
+    let (cenv, ienv) = class_env(&cfdefs.0, lexer)?;
     let fenv = fn_env(&cfdefs.1, lexer)?;
     let cfenv = (cenv, fenv);
 
@@ -871,11 +918,39 @@ fn register_class_in_env(
     Ok(())
 }
 
+// UWAGA: zakłada, że poprawność została już sprawdzona przy `register_class_in_env`
+fn register_superclasses_in_env(
+    ident: &ast::Ident,
+    ienv: &mut IEnv,
+    cdefs: &HashMap<ast::Ident, ast::Node<ast::ClassDef>>,
+    lexer: &dyn Lexer<u32>,
+) -> Result<(), String> {
+    if let Some(_) = ienv.get(ident) {
+        return Ok(()) // już nam podklasa kazała się zarejestrować
+    }
+    let (_, parent_ident_node_option, _, _) = cdefs.get(ident).unwrap().data();
+
+    let superclasses = match parent_ident_node_option {
+        Some(parent_ident_node) => {
+            let parent_ident = parent_ident_node.data();
+            register_superclasses_in_env(parent_ident, ienv, cdefs, lexer)?;
+            let mut superclasses = ienv.get(parent_ident).unwrap().clone();
+            superclasses.insert(parent_ident.to_string());
+            superclasses
+        }
+        None => HashSet::new(),
+    };
+    ienv.insert(ident.to_string(), superclasses);
+
+    Ok(())
+}
+
 fn class_env(
     cdefs: &Vec<ast::Node<ast::ClassDef>>,
     lexer: &dyn Lexer<u32>,
-) -> Result<CEnv, String> {
+) -> Result<(CEnv, IEnv), String> {
     let mut cenv: CEnv = HashMap::new();
+    let mut ienv: IEnv = HashMap::new();
     let mut cdefs_map: HashMap<ast::Ident, ast::Node<ast::ClassDef>> = HashMap::new();
     for cdef in cdefs {
         match cdefs_map.insert(cdef.data().0.data().clone(), cdef.clone()) {
@@ -891,8 +966,9 @@ fn class_env(
     }
     for cdef in cdefs {
         register_class_in_env(&cdef.data().0, &mut cenv, &cdefs_map, lexer)?;
+        register_superclasses_in_env(&cdef.data().0.data(), &mut ienv, &cdefs_map, lexer)?;
     }
-    Ok(cenv)
+    Ok((cenv, ienv))
 }
 
 fn arg_types(
