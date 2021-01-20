@@ -6,6 +6,8 @@
 // TOOD: możliwość override'a metody (w tym momencie "method name not unique")
 // TODO: self w metodach (jak w kompilatorze: dodać argument)
 // TODO: tworzenie Point2 p2 = new Point3
+// TODO: czy powinniśmy móc porównywać obiekty o typach Dziecko i Rodzic?
+// TODO: opis sposobu castów (implicite) w README
 
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
@@ -18,6 +20,8 @@ type CEnv = HashMap<ast::Ident, CMembers>;
 type FEnv = HashMap<ast::Ident, ast::FunType>;
 type VEnv = Vec<HashMap<ast::Ident, ast::Prim>>;
 type CFEnv = (CEnv, FEnv);
+
+use ast::SELF_IDENT;
 
 fn venv_get_in_scope(venv: &VEnv, key: &ast::Ident) -> Option<ast::Prim> {
     match venv.last().unwrap().get(key) {

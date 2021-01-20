@@ -11,6 +11,7 @@ string "STR"
 boolean "BOOL"
 void "VOID"
 
+self "SELF"
 new "NEW"
 class "CLASS"
 \)null "NULL"
@@ -45,7 +46,7 @@ extends "EXTENDS"
 \( "("
 \) ")"
 
-[a-zA-z_][a-zA-Z0-9_]* "IDENT"
+[a-zA-z][a-zA-Z0-9_]* "IDENT"
 0|([1-9][0-9]*) "INTEGER"
 "[^"]*" "STRING"
 

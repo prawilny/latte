@@ -239,6 +239,12 @@ Expr6 -> Result<Node<Expr>, ()>:
         Ok(Node::new(Span::new(e.span().start(), ident.span().end()), Expr::Dot(Box::new(e), ident)))
       }
     |
+      'SELF' {
+        let s = $1.map_err(|_| ())?;
+        let self_node = Node::new(s.span(), SELF_IDENT.to_string());
+        Ok(Node::new(s.span().clone(), Expr::Var(self_node)))
+      }
+    |
       Ident {
         let v = $1.map_err(|_| ())?;
         Ok(Node::new(v.span().clone(), Expr::Var(v)))
@@ -518,6 +524,8 @@ fn join_ast_spans<N1: Debug + Clone, N2: Debug + Clone>(start: &Result<Node<N1>,
     let end_ok = end.as_ref().map_err(|_| ())?;
     Ok(Span::new(start_ok.span().start(), end_ok.span().end()))
 }
+
+pub static SELF_IDENT: &str = "__self";
 
 pub type Ident = String;
 
