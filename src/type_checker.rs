@@ -3,7 +3,7 @@
 // TODO: upewnić się, że dodanie obiektów nie wymaga zmiany niczego więcej
 // TODO: priorytet '.'
 // TODO: sprawdzenie gramatyki
-// TODO: opis sposobu castów (implicite) w README
+// TODO: sprawdzenie uwagi o castach w README
 // TODO: czy type_checker musi przekazywać rzeczy do kompilatora? (informacje o dziedziczeniu/klasach zmiennych)
 //       jeśli tak - pewnie by należało wydzielić moduł na to
 

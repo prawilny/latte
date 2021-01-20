@@ -14,6 +14,9 @@ niewłaściwą zaś: `if (true) if (false) ; else ;`.
 Dla uproszczenia kodu ograniczyłem casty (przy zachowaniu kompatybilności z publicznuymi testami):
 ")null" stanowi pojedynczy token, więc nie można zrobić `( class ) null`.
 
+Jedyne dozwolone jawne rzutowania są na null: `( klasa )null`.
+Wszystkie inne rzutowania robione są niejawnie.
+
 Uwagi do kompilatora
 ========================================
 Kompilator obsługuje podstawową wersję języka latte.
