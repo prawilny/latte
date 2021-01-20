@@ -3,13 +3,9 @@
 // TODO: upewnić się, że dodanie obiektów nie wymaga zmiany niczego więcej
 // TODO: priorytet '.'
 // TODO: sprawdzenie gramatyki
-// TOOD: możliwość override'a metody (w tym momencie "method name not unique")
 // TODO: opis sposobu castów (implicite) w README
 // TODO: czy type_checker musi przekazywać rzeczy do kompilatora? (informacje o dziedziczeniu/klasach zmiennych)
 //       jeśli tak - pewnie by należało wydzielić moduł na to
-// TODO: czy w dobrych środowiskach są sprawdzane wywołania funkcji
-//       (chyba tak - venv globalny jest przy callu, a przy sprawdzaniu funkcji/metod jest jakiś pusty venv)
-// TODO: w którą stronę mogą być podklasami argumenty funkcji (), a w którą - zmienne?
 
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
@@ -1032,7 +1028,7 @@ fn fn_env(fdefs: &Vec<ast::Node<ast::FunDef>>, lexer: &dyn Lexer<u32>) -> Result
     match fenv.get("main") {
         None => return Err("no main()".to_string()),
         Some((prim, args)) => {
-            if let ast::Prim::Void = prim {
+            if let ast::Prim::Int = prim {
                 if args.len() != 0 {
                     return Err("main() has arguments".to_string());
                 }
