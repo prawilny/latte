@@ -4,9 +4,7 @@
 // TODO: priorytet '.'
 // TODO: sprawdzenie gramatyki
 // TOOD: możliwość override'a metody (w tym momencie "method name not unique")
-// TODO: self w metodach (jak w kompilatorze: dodać argument)
 // TODO: opis sposobu castów (implicite) w README
-// TODO: odwrócić kolejność tworzenia CEnv i IEnv; ogarnąć unwrap()
 // TODO: czy type_checker musi przekazywać rzeczy do kompilatora? (informacje o dziedziczeniu/klasach zmiennych)
 //       jeśli tak - pewnie by należało wydzielić moduł na to
 // TODO: czy w dobrych środowiskach są sprawdzane wywołania funkcji
@@ -52,7 +50,7 @@ fn cmp_types(expected: &ast::Type, actual: &ast::Type, ienv: &IEnv) -> bool {
     match (expected, actual) {
         (ast::Type::Var(exp_prim), ast::Type::Var(act_prim)) => cmp_prims(exp_prim, act_prim, ienv),
         (ast::Type::Fun((exp_prim, exp_arg_prims)), ast::Type::Fun((act_prim, act_arg_prims))) => {
-            cmp_prims(exp_prim, act_prim, ienv) && {
+            cmp_prims(act_prim, exp_prim, ienv) && { // odwrotne porównanie - możemy zwrócić podklasę
                 if exp_arg_prims.len() == act_arg_prims.len() {
                     let cmps: Vec<bool> = exp_arg_prims.iter().zip(act_arg_prims.iter()).map(
                         |(exp_arg_prim, act_arg_prim)| {
