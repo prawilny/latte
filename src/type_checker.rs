@@ -8,7 +8,10 @@
 // TODO: opis sposobu castów (implicite) w README
 // TODO: odwrócić kolejność tworzenia CEnv i IEnv; ogarnąć unwrap()
 // TODO: czy type_checker musi przekazywać rzeczy do kompilatora? (informacje o dziedziczeniu/klasach zmiennych)
-// TODO: jeśli tak - pewnie by należało wydzielić moduł na to
+//       jeśli tak - pewnie by należało wydzielić moduł na to
+// TODO: czy w dobrych środowiskach są sprawdzane wywołania funkcji
+//       (chyba tak - venv globalny jest przy callu, a przy sprawdzaniu funkcji/metod jest jakiś pusty venv)
+// TODO: w którą stronę mogą być podklasami argumenty funkcji (), a w którą - zmienne?
 
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
@@ -414,6 +417,8 @@ fn check_expr(
                             ))
                         }
                         Some(ast::Type::Fun(fun_type)) => {
+                            let mut arg_nodes_with_self = arg_nodes.clone();
+                            arg_nodes_with_self.insert(0, *(expr_node.clone())); // this
                             check_call(fun_type, ident_node, arg_nodes, venv, cfienv, lexer)?
                         }
                     }
@@ -924,7 +929,9 @@ fn register_class_in_env(
 
     for method_node in method_nodes {
         let (prim_node, ident_node, arg_nodes, _) = method_node.data();
-        let arg_types = arg_types(arg_nodes, lexer)?;
+        let mut arg_types = arg_types(arg_nodes, lexer)?;
+        arg_types.insert(0, ast::Prim::Class(ident_node.data().to_string())); // this
+
         let new_type = ast::Type::Fun((prim_node.data().clone(), arg_types));
 
         if let Some(old_type) = members.insert(
