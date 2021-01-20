@@ -828,6 +828,8 @@ fn check_fn(
 
     let fn_always_returns = check_block(block_node.data(), fn_prim, venv, cfienv, lexer)?;
     if let ast::Prim::Void = fn_prim {
+        ()
+    } else {
         if !fn_always_returns {
             return Err(wrap_error_msg(
                 lexer,
