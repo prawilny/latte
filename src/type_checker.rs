@@ -5,14 +5,10 @@
 // TODO: sprawdzenie gramatyki
 // TOOD: możliwość override'a metody (w tym momencie "method name not unique")
 // TODO: self w metodach (jak w kompilatorze: dodać argument)
-// TODO: tworzenie Point2 p2 = new Point3
-// TODO: czy powinniśmy móc porównywać obiekty o typach Dziecko i Rodzic?
 // TODO: opis sposobu castów (implicite) w README
-// TODO: czy równości na typach powinny brać pod uwagę bycie podklasami?
-// TODO: IEnv, wrapper na porównywanie typów
-// TOOD: skasować PartialEQ z prim/type i stworzyć własne
-// TOOD: przenieść IEnv do
-// TODO: czy type_checker musi przekazywać rzeczy do kompilatora?
+// TODO: odwrócić kolejność tworzenia CEnv i IEnv; ogarnąć unwrap()
+// TODO: czy type_checker musi przekazywać rzeczy do kompilatora? (informacje o dziedziczeniu/klasach zmiennych)
+// TODO: jeśli tak - pewnie by należało wydzielić moduł na to
 
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
@@ -355,7 +351,7 @@ fn check_call(
 
     for (arg_prim, expr_node) in fun_arg_types.iter().zip(arg_nodes.iter()) {
         let expr_prim = check_expr(expr_node, venv, cfienv, lexer)?;
-        if expr_prim != *arg_prim {
+        if !cmp_prims(arg_prim, &expr_prim, &cfienv.2) {
             return Err(type_mismatch_msg(
                 arg_prim.clone(),
                 &expr_prim,
@@ -619,7 +615,7 @@ fn check_stmt(
         }
         ast::Stmt::Decl(prim_node, item_nodes) => {
             let decl_prim = prim_node.data();
-            if *decl_prim == ast::Prim::Void {
+            if let ast::Prim::Void = decl_prim {
                 return Err(wrap_error_msg(
                     lexer,
                     stmt.span(),
@@ -634,7 +630,7 @@ fn check_stmt(
                         check_expr(&expr_node, &mut venv, cfienv, lexer)?,
                     ),
                 };
-                if *decl_prim != var_prim {
+                if !cmp_prims(&decl_prim, &var_prim, &cfienv.2) {
                     return Err(type_mismatch_msg(
                         decl_prim.clone(),
                         &var_prim,
@@ -659,7 +655,7 @@ fn check_stmt(
                 ast::Expr::Var(ident_node) => {
                     match venv_insert(venv, ident_node.data().clone(), expr_prim.clone()) {
                         Some(var_prim) => {
-                            if var_prim == expr_prim {
+                            if cmp_prims(&var_prim, &expr_prim, &cfienv.2) {
                                 Ok(false)
                             } else {
                                 Err(type_mismatch_msg(
@@ -688,7 +684,7 @@ fn check_stmt(
                                 }
                             };
                             match members_map.get(field_name) {
-                                Some(ast::Type::Var(field_prim)) if *field_prim == expr_prim => {
+                                Some(ast::Type::Var(field_prim)) if cmp_prims(field_prim, &expr_prim, &cfienv.2) => {
                                     Ok(false)
                                 }
                                 Some(ast::Type::Var(field_prim)) => {
@@ -748,7 +744,7 @@ fn check_stmt(
         }
         ast::Stmt::Ret(expr_node) => {
             let expr_prim = check_expr(&expr_node, &mut venv, cfienv, lexer)?;
-            if *fn_prim != expr_prim {
+            if !cmp_prims(fn_prim, &expr_prim, &cfienv.2) {
                 Err(wrong_return_msg(
                     fn_prim.clone(),
                     &expr_prim,
@@ -760,15 +756,15 @@ fn check_stmt(
             }
         }
         ast::Stmt::VRet => {
-            if *fn_prim != ast::Prim::Void {
+            if let ast::Prim::Void = fn_prim {
+                Ok(true)
+            } else {
                 Err(wrong_return_msg(
                     fn_prim.clone(),
                     &ast::Prim::Void,
                     lexer,
                     stmt.span(),
                 ))
-            } else {
-                Ok(true)
             }
         }
         ast::Stmt::Block(block_node) => {
@@ -776,7 +772,7 @@ fn check_stmt(
         }
         ast::Stmt::If(expr_node, stmt_node) | ast::Stmt::While(expr_node, stmt_node) => {
             let expr_prim = check_expr(&expr_node, &mut venv, cfienv, lexer)?;
-            if expr_prim == ast::Prim::Bool {
+            if let ast::Prim::Bool = expr_prim {
                 venv_enter_scope(venv);
                 let stmt_returns = check_stmt(&stmt_node, fn_prim, &mut venv, cfienv, lexer)?;
                 venv_exit_scope(venv);
@@ -796,7 +792,7 @@ fn check_stmt(
         }
         ast::Stmt::IfElse(expr_node, stmt_true_node, stmt_false_node) => {
             let expr_prim = check_expr(&expr_node, &mut venv, cfienv, lexer)?;
-            if expr_prim == ast::Prim::Bool {
+            if let ast::Prim::Bool = expr_prim {
                 venv_enter_scope(venv);
                 let stmt_true_returns =
                     check_stmt(&stmt_true_node, fn_prim, &mut venv, cfienv, lexer)?;
@@ -838,14 +834,54 @@ fn check_fn(
     }
 
     let fn_prim = prim_node.data();
-    if !check_block(block_node.data(), fn_prim, venv, cfienv, lexer)? && *fn_prim != ast::Prim::Void
-    {
-        return Err(wrap_error_msg(
-            lexer,
-            fdef.span(),
-            "nonvoid function does not return",
-        ));
+
+    let fn_always_returns = check_block(block_node.data(), fn_prim, venv, cfienv, lexer)?;
+    if let ast::Prim::Void = fn_prim {
+        if !fn_always_returns {
+            return Err(wrap_error_msg(
+                lexer,
+                fdef.span(),
+                "nonvoid function does not return",
+            ));
+        }
     }
+
+    Ok(())
+}
+
+fn register_superclasses_in_env(
+    ident_node: &ast::Node<ast::Ident>,
+    ienv: &mut IEnv,
+    cdefs: &HashMap<ast::Ident, ast::Node<ast::ClassDef>>,
+    lexer: &dyn Lexer<u32>,
+) -> Result<(), String> {
+    let ident = ident_node.data();
+    let parent_ident_node_option = match cdefs.get(ident) {
+        Some(cdef) => &cdef.data().1,
+        None => {
+            return Err(wrap_error_msg(
+                lexer,
+                ident_node.span(),
+                "nonexistent class",
+            ))
+        }
+    };
+
+    if let Some(_) = ienv.get(ident) {
+        return Ok(())
+    }
+
+    let superclasses = match parent_ident_node_option {
+        Some(parent_ident_node) => {
+            let parent_ident = parent_ident_node.data();
+            register_superclasses_in_env(&parent_ident_node, ienv, cdefs, lexer)?;
+            let mut superclasses = ienv.get(parent_ident).unwrap().clone();
+            superclasses.insert(parent_ident.to_string());
+            superclasses
+        }
+        None => HashSet::new(),
+    };
+    ienv.insert(ident.to_string(), superclasses);
 
     Ok(())
 }
@@ -854,33 +890,21 @@ fn register_class_in_env(
     ident_node: &ast::Node<ast::Ident>,
     cenv: &mut CEnv,
     cdefs: &HashMap<ast::Ident, ast::Node<ast::ClassDef>>,
+    ienv: &IEnv,
     lexer: &dyn Lexer<u32>,
 ) -> Result<(), String> {
-    let cdef = match cdefs.get(ident_node.data()) {
-        Some(cdef) => cdef,
-        None => {
-            return Err(wrap_error_msg(
-                lexer,
-                ident_node.span(),
-                "nonexistent parent class",
-            ))
-        }
-    };
+    let cdef = cdefs.get(ident_node.data()).unwrap(); // unwrap, bo register_superclasses już sprawdziło
     let (self_ident_node, parent_ident_node_option, field_nodes, method_nodes) = cdef.data();
 
     if let Some(_) = cenv.get(self_ident_node.data()) {
         return Ok(());
     }
 
-    if let Some(parent_ident_node) = parent_ident_node_option {
-        match cenv.get(parent_ident_node.data()) {
-            Some(_) => (),
-            None => register_class_in_env(parent_ident_node, cenv, cdefs, lexer)?,
-        };
-    }
-
     let mut members = match parent_ident_node_option {
-        Some(parent_ident_node) => cenv.get(parent_ident_node.data()).unwrap().clone(),
+        Some(parent_ident_node) => {
+            register_class_in_env(parent_ident_node, cenv, cdefs, ienv, lexer)?;
+            cenv.get(parent_ident_node.data()).unwrap().clone()
+        }
         None => HashMap::new(),
     };
 
@@ -901,47 +925,23 @@ fn register_class_in_env(
     for method_node in method_nodes {
         let (prim_node, ident_node, arg_nodes, _) = method_node.data();
         let arg_types = arg_types(arg_nodes, lexer)?;
+        let new_type = ast::Type::Fun((prim_node.data().clone(), arg_types));
 
-        if let Some(_) = members.insert(
+        if let Some(old_type) = members.insert(
             ident_node.data().to_string(),
-            ast::Type::Fun((prim_node.data().clone(), arg_types)),
+            new_type.clone(),
         ) {
-            return Err(wrap_error_msg(
-                lexer,
-                ident_node.span(),
-                "method name not unique",
-            ));
+            if !cmp_types(&old_type, &new_type, ienv) {
+                return Err(wrap_error_msg(
+                    lexer,
+                    method_node.span(),
+                    "method override type mismatch",
+                ));
+            }
         }
     }
 
     cenv.insert(self_ident_node.data().to_string(), members);
-    Ok(())
-}
-
-// UWAGA: zakłada, że poprawność została już sprawdzona przy `register_class_in_env`
-fn register_superclasses_in_env(
-    ident: &ast::Ident,
-    ienv: &mut IEnv,
-    cdefs: &HashMap<ast::Ident, ast::Node<ast::ClassDef>>,
-    lexer: &dyn Lexer<u32>,
-) -> Result<(), String> {
-    if let Some(_) = ienv.get(ident) {
-        return Ok(()) // już nam podklasa kazała się zarejestrować
-    }
-    let (_, parent_ident_node_option, _, _) = cdefs.get(ident).unwrap().data();
-
-    let superclasses = match parent_ident_node_option {
-        Some(parent_ident_node) => {
-            let parent_ident = parent_ident_node.data();
-            register_superclasses_in_env(parent_ident, ienv, cdefs, lexer)?;
-            let mut superclasses = ienv.get(parent_ident).unwrap().clone();
-            superclasses.insert(parent_ident.to_string());
-            superclasses
-        }
-        None => HashSet::new(),
-    };
-    ienv.insert(ident.to_string(), superclasses);
-
     Ok(())
 }
 
@@ -965,8 +965,8 @@ fn class_env(
         }
     }
     for cdef in cdefs {
-        register_class_in_env(&cdef.data().0, &mut cenv, &cdefs_map, lexer)?;
-        register_superclasses_in_env(&cdef.data().0.data(), &mut ienv, &cdefs_map, lexer)?;
+        register_class_in_env(&cdef.data().0, &mut cenv, &cdefs_map, &ienv, lexer)?;
+        register_superclasses_in_env(&cdef.data().0, &mut ienv, &cdefs_map, lexer)?;
     }
     Ok((cenv, ienv))
 }
@@ -979,7 +979,7 @@ fn arg_types(
     for arg_node in arg_nodes {
         let (arg_prim_node, _) = arg_node.data();
         let arg_prim = arg_prim_node.data();
-        if *arg_prim == ast::Prim::Void {
+        if let ast::Prim::Void = arg_prim {
             return Err(wrap_error_msg(
                 lexer,
                 arg_node.span(),
@@ -1027,11 +1027,12 @@ fn fn_env(fdefs: &Vec<ast::Node<ast::FunDef>>, lexer: &dyn Lexer<u32>) -> Result
     match fenv.get("main") {
         None => return Err("no main()".to_string()),
         Some((prim, args)) => {
-            if *prim != ast::Prim::Int {
+            if let ast::Prim::Void = prim {
+                if args.len() != 0 {
+                    return Err("main() has arguments".to_string());
+                }
+            } else {
                 return Err("wrong main() type".to_string());
-            }
-            if args.len() != 0 {
-                return Err("main() has arguments".to_string());
             }
         }
     }

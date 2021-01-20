@@ -578,7 +578,7 @@ impl std::fmt::Display for Prim {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Prim {
     Int,
     Str,
@@ -587,7 +587,7 @@ pub enum Prim {
     Class(Ident),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Type {
     Var(Prim),
     Fun(FunType)
