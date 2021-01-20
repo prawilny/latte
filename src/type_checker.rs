@@ -176,6 +176,7 @@ fn method_venv(
 
     let mut class_venv = VEnv::new();
     venv_enter_scope(&mut class_venv);
+    venv_insert(&mut class_venv, SELF_IDENT.to_string(), ast::Prim::Class(self_name_node.data().to_string()));
     for (member_name, member) in members_map {
         if let ast::Type::Var(prim) = member {
             venv_insert(&mut class_venv, member_name.to_string(), prim.clone());
