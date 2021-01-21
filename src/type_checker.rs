@@ -47,7 +47,8 @@ fn cmp_types(expected: &ast::Type, actual: &ast::Type, ienv: &IEnv) -> bool {
     match (expected, actual) {
         (ast::Type::Var(exp_prim), ast::Type::Var(act_prim)) => cmp_prims(exp_prim, act_prim, ienv),
         (ast::Type::Fun((exp_prim, exp_arg_prims)), ast::Type::Fun((act_prim, act_arg_prims))) => {
-            cmp_prims(act_prim, exp_prim, ienv) && { // odwrotne porównanie - możemy zwrócić podklasę
+            cmp_prims(act_prim, exp_prim, ienv) && {
+                // odwrotne porównanie - możemy zwrócić podklasę
                 if exp_arg_prims.len() == act_arg_prims.len() {
                     let cmps: Vec<bool> = exp_arg_prims
                         .iter()
@@ -568,7 +569,13 @@ fn check_expr(
                 check_expr(expr1_node, venv, cfienv, lexer)?,
                 check_expr(expr2_node, venv, cfienv, lexer)?,
             ) {
-                (ast::Prim::Class(c1), ast::Prim::Class(c2)) if c1 == c2 => ast::Prim::Bool,
+                (ast::Prim::Class(c1), ast::Prim::Class(c2))
+                    if c1 == c2
+                        || is_subclass(&c1, &c2, &cfienv.2)
+                        || is_subclass(&c2, &c1, &cfienv.2) =>
+                {
+                    ast::Prim::Bool
+                }
                 (ast::Prim::Bool, ast::Prim::Bool) | (ast::Prim::Int, ast::Prim::Int) => {
                     ast::Prim::Bool
                 }

@@ -82,6 +82,7 @@ static VTABLE_IDENT: &str = "__vtable";
 // TODO: sprawdzić, czy gdzieś wstawienie obiektu nie psuje
 // TODO: problem z przedeklarowaniem zmiennej klasy wewnątrz metody
 //       rozwiązanie: vstack_variable_present => bool (korzystamy z tego przy wyciąganiu )
+// TODO: wykasować error() i błędy - łapać panic! w main()
 
 type VOffsets = Vec<ast::Ident>;
 type FOffsets = Vec<(ast::Ident, ast::Ident)>;
@@ -153,9 +154,13 @@ fn vstack_rename_top(vstack: &mut VStack, new_name: ast::Ident) {
     *vstack.0.last_mut().unwrap() = new_name;
 }
 
-fn vstack_shrink_stack(vstack: &mut VStack, output: &mut Output) {
+fn vstack_shrink_stack(vstack: &mut VStack, vars: usize, output: &mut Output) {
     vstack.0.pop();
-    output.text.push(code_shrink_stack(1));
+    output.text.push(code_shrink_stack(vars));
+}
+
+fn vstack_local_exists(vstack: &VStack, vname: &ast::Ident) -> bool {
+    vstack.0.contains(vname)
 }
 
 fn code_shrink_stack(n: usize) -> String {
@@ -238,7 +243,7 @@ fn class_env(cdefs: &Vec<ast::Node<ast::ClassDef>>) -> CEnv {
 }
 
 fn print_wrapper(s: &str) {
-    if let None =  s.find(|c: char| c == '.' || c == ':') {
+    if let None = s.find(|c: char| c == '.' || c == ':') {
         println!("    {}", s);
     } else {
         println!("{}", s);
@@ -353,7 +358,7 @@ fn compile_stmt(
         ast::Stmt::Empty => (),
         ast::Stmt::Expr(expr_node) => {
             compile_expr_ptr(expr_node, vstack, cenv, labels, output);
-            vstack_shrink_stack(vstack, output);
+            vstack_shrink_stack(vstack, 1, output);
         }
         ast::Stmt::Block(block_node) => {
             compile_block(block_node.data(), vstack, cenv, labels, output)
@@ -537,7 +542,7 @@ fn compile_expr_val(
     }
 }
 
-// na stosie jest wartość (która dla obiektów i wstingów jest wskaźnikiem)
+// na stosie jest wartość (która dla obiektów i stingów jest wskaźnikiem)
 //                lub wskaźnik (w przypadku zmiennej lub pola struktury)
 fn compile_expr_ptr(
     expr: &ast::Node<ast::Expr>,
@@ -571,14 +576,38 @@ fn compile_expr_ptr(
             push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::Var(ident_node) => {
-            let offset = vstack_get_offset(vstack, ident_node.data());
-            output
-                .text
-                .push(format!("{} {}, {}", OP_MOV, REG_MAIN, REG_BASE));
-            output
-                .text
-                .push(format!("{} {}, {}", OP_SUB, REG_MAIN, offset));
-            push_wrapper(REG_MAIN, None, vstack, output);
+            if vstack_local_exists(vstack, ident_node.data()) {
+                let offset = vstack_get_offset(vstack, ident_node.data());
+                output
+                    .text
+                    .push(format!("{} {}, {}", OP_MOV, REG_MAIN, REG_BASE));
+                output
+                    .text
+                    .push(format!("{} {}, {}", OP_SUB, REG_MAIN, offset));
+                push_wrapper(REG_MAIN, None, vstack, output);
+            } else {
+                // problem: w której funkcji jestem? (dodatkowy argument do wszystkiego)?
+                //                                    Option<ast::Ident>
+                unimplemented!();
+                let self_offset = vstack_get_offset(vstack, &SELF_IDENT.to_string());
+                let field_offset = 0; // * VAR_SIZE
+
+                output
+                    .text
+                    .push(format!("{} {}, {}", OP_MOV, REG_MAIN, REG_BASE));
+                output
+                    .text
+                    .push(format!("{} {}, {}", OP_SUB, REG_MAIN, self_offset));
+                output
+                    .text
+                    .push(format!("{} {}, {}", OP_ADD, REG_MAIN, field_offset));
+                push_wrapper(
+                    &format!("{} ptr [{}]", MEM_WORD_SIZE, REG_MAIN),
+                    None,
+                    vstack,
+                    output,
+                );
+            }
         }
         ast::Expr::Neg(expr_node) => {
             compile_expr_val(expr_node, vstack, cenv, labels, output);
@@ -618,12 +647,7 @@ fn compile_expr_ptr(
             }
             output.text.push(format!("{} {}", OP_CALL, fname));
             if stack_args_count > 0 {
-                output.text.push(format!(
-                    "{} {}, {}",
-                    OP_ADD,
-                    REG_STACK,
-                    VAR_SIZE * stack_args_count
-                ));
+                vstack_shrink_stack(vstack, stack_args_count, output);
             }
             push_wrapper(REG_FN_RETVAL, None, vstack, output);
         }
@@ -697,7 +721,7 @@ fn compile_expr_ptr(
                 .text
                 .push(format!("{} {}", JMP_EQ, or_and_label_after));
 
-            vstack_shrink_stack(vstack, output);
+            vstack_shrink_stack(vstack, 1, output);
             compile_expr_val(&expr2, vstack, cenv, labels, output);
             output.text.push(format!("{}:", or_and_label_after));
         }
@@ -756,16 +780,23 @@ fn compile_expr_ptr(
                         .0
                         .iter()
                         .position(|vname| vname == field_ident_node.data())
-                        .unwrap() * VAR_SIZE;
+                        .unwrap()
+                        * VAR_SIZE;
 
                     output
                         .text
                         .push(format!("{} {}, {}", OP_ADD, REG_MAIN, voffset));
-                    output.text.push(format!(
-                        "{} {}, {} ptr [{}]",
-                        OP_MOV, REG_AUX, MEM_WORD_SIZE, REG_MAIN
-                    ));
-                    push_wrapper(REG_AUX, None, vstack, output);
+
+                    // dereferencjujemy tylko klasę
+                    if let ast::Prim::Class(_) = expr.get_prim() {
+                        output.text.push(format!(
+                            "{} {}, {} ptr [{}]",
+                            OP_MOV, REG_AUX, MEM_WORD_SIZE, REG_MAIN
+                        ));
+                        push_wrapper(REG_AUX, None, vstack, output);
+                    } else {
+                        push_wrapper(REG_MAIN, None, vstack, output);
+                    }
                 }
                 _ => panic!(),
             }
