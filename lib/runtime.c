@@ -50,3 +50,9 @@ string __strcat(const string s1, const string s2) {
 
     return str;
 }
+
+void * __new(const long bytes) {
+    void * ptr = malloc(bytes);
+    memset(ptr, 0, bytes);
+    return ptr;
+}
