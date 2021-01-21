@@ -59,6 +59,7 @@ Struktura projektu:
 ├── latc_x86_64         - skrypt uruchamiający kompilator
 ├── Makefile
 ├── README
+├── rustfmt.toml        - plik konfiguracyjny formatera kodu
 └── src
     ├── compiler.rs     - moduł z funkcjami generującymi kod
     ├── latte.l         - plik definiujący lexer

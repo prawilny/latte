@@ -123,29 +123,13 @@ fn no_such_msg(lexer: &dyn Lexer<u32>, span: &Span, entity: &str) -> String {
     wrap_error_msg(lexer, span, &msg)
 }
 
-fn wrong_return_msg(
-    expected_type: ast::Prim,
-    actual_type: &ast::Prim,
-    lexer: &dyn Lexer<u32>,
-    span: &Span,
-) -> String {
-    let msg = format!(
-        "wrong return type: expected {}, got {}",
-        expected_type, actual_type
-    );
+fn wrong_return_msg(expected_type: ast::Prim, actual_type: &ast::Prim, lexer: &dyn Lexer<u32>, span: &Span) -> String {
+    let msg = format!("wrong return type: expected {}, got {}", expected_type, actual_type);
     wrap_error_msg(lexer, span, &msg)
 }
 
-fn type_mismatch_msg(
-    expected_type: ast::Prim,
-    actual_type: &ast::Prim,
-    lexer: &dyn Lexer<u32>,
-    span: &Span,
-) -> String {
-    let msg = format!(
-        "type mismatch: expected {}, got {}",
-        expected_type, actual_type
-    );
+fn type_mismatch_msg(expected_type: ast::Prim, actual_type: &ast::Prim, lexer: &dyn Lexer<u32>, span: &Span) -> String {
+    let msg = format!("type mismatch: expected {}, got {}", expected_type, actual_type);
     wrap_error_msg(lexer, span, &msg)
 }
 
@@ -162,20 +146,10 @@ fn wrong_operator_arguments(
     wrap_error_msg(lexer, span, &msg)
 }
 
-fn method_venv(
-    self_name_node: &ast::Node<ast::Ident>,
-    cfienv: &CFIEnv,
-    lexer: &dyn Lexer<u32>,
-) -> Result<VEnv, String> {
+fn method_venv(self_name_node: &ast::Node<ast::Ident>, cfienv: &CFIEnv, lexer: &dyn Lexer<u32>) -> Result<VEnv, String> {
     let members_map = match cfienv.0.get(self_name_node.data()) {
         Some(members_map) => members_map,
-        None => {
-            return Err(wrap_error_msg(
-                lexer,
-                self_name_node.span(),
-                "nonexistent class",
-            ))
-        }
+        None => return Err(wrap_error_msg(lexer, self_name_node.span(), "nonexistent class")),
     };
 
     let mut class_venv = VEnv::new();
@@ -235,62 +209,51 @@ fn expr_bool(expr: &ast::Node<ast::Expr>, lexer: &dyn Lexer<u32>) -> Result<Opti
                 Ok(None)
             }
         }
-        ast::Expr::And(expr1_node, expr2_node) => {
-            match (expr_bool(expr1_node, lexer)?, expr_bool(expr2_node, lexer)?) {
-                (Some(b1), Some(b2)) => Ok(Some(b1 && b2)),
-                _ => Ok(None),
-            }
-        }
-        ast::Expr::Or(expr1_node, expr2_node) => {
-            match (expr_bool(expr1_node, lexer)?, expr_bool(expr2_node, lexer)?) {
-                (Some(b1), Some(b2)) => Ok(Some(b1 || b2)),
-                (Some(b), None) | (None, Some(b)) => Ok(Some(b)),
-                _ => Ok(None),
-            }
-        }
+        ast::Expr::And(expr1_node, expr2_node) => match (expr_bool(expr1_node, lexer)?, expr_bool(expr2_node, lexer)?) {
+            (Some(b1), Some(b2)) => Ok(Some(b1 && b2)),
+            _ => Ok(None),
+        },
+        ast::Expr::Or(expr1_node, expr2_node) => match (expr_bool(expr1_node, lexer)?, expr_bool(expr2_node, lexer)?) {
+            (Some(b1), Some(b2)) => Ok(Some(b1 || b2)),
+            (Some(b), None) | (None, Some(b)) => Ok(Some(b)),
+            _ => Ok(None),
+        },
         ast::Expr::LTH(expr1_node, expr2_node)
         | ast::Expr::LEQ(expr1_node, expr2_node)
         | ast::Expr::GTH(expr1_node, expr2_node)
-        | ast::Expr::GEQ(expr1_node, expr2_node) => {
-            match (expr_int(expr1_node, lexer)?, expr_int(expr2_node, lexer)?) {
-                (Some(e1), Some(e2)) => match expr.data() {
-                    ast::Expr::LTH(_, _) => Ok(Some(e1 < e2)),
-                    ast::Expr::LEQ(_, _) => Ok(Some(e1 <= e2)),
-                    ast::Expr::GTH(_, _) => Ok(Some(e1 > e2)),
-                    ast::Expr::GEQ(_, _) => Ok(Some(e1 >= e2)),
-                    _ => unreachable!(),
-                },
-                _ => Ok(None),
-            }
-        }
-        ast::Expr::NEQ(expr1_node, expr2_node) | ast::Expr::EQ(expr1_node, expr2_node) => {
-            match (
-                expr_int(expr1_node, lexer)?,
-                expr_int(expr2_node, lexer)?,
-                expr_bool(expr1_node, lexer)?,
-                expr_bool(expr2_node, lexer)?,
-            ) {
-                (Some(e1), Some(e2), _, _) => match expr.data() {
-                    ast::Expr::NEQ(_, _) => Ok(Some(e1 != e2)),
-                    ast::Expr::EQ(_, _) => Ok(Some(e1 == e2)),
-                    _ => unreachable!(),
-                },
-                (_, _, Some(b1), Some(b2)) => match expr.data() {
-                    ast::Expr::NEQ(_, _) => Ok(Some(b1 != b2)),
-                    ast::Expr::EQ(_, _) => Ok(Some(b1 == b2)),
-                    _ => unreachable!(),
-                },
-                _ => Ok(None),
-            }
-        }
+        | ast::Expr::GEQ(expr1_node, expr2_node) => match (expr_int(expr1_node, lexer)?, expr_int(expr2_node, lexer)?) {
+            (Some(e1), Some(e2)) => match expr.data() {
+                ast::Expr::LTH(_, _) => Ok(Some(e1 < e2)),
+                ast::Expr::LEQ(_, _) => Ok(Some(e1 <= e2)),
+                ast::Expr::GTH(_, _) => Ok(Some(e1 > e2)),
+                ast::Expr::GEQ(_, _) => Ok(Some(e1 >= e2)),
+                _ => unreachable!(),
+            },
+            _ => Ok(None),
+        },
+        ast::Expr::NEQ(expr1_node, expr2_node) | ast::Expr::EQ(expr1_node, expr2_node) => match (
+            expr_int(expr1_node, lexer)?,
+            expr_int(expr2_node, lexer)?,
+            expr_bool(expr1_node, lexer)?,
+            expr_bool(expr2_node, lexer)?,
+        ) {
+            (Some(e1), Some(e2), _, _) => match expr.data() {
+                ast::Expr::NEQ(_, _) => Ok(Some(e1 != e2)),
+                ast::Expr::EQ(_, _) => Ok(Some(e1 == e2)),
+                _ => unreachable!(),
+            },
+            (_, _, Some(b1), Some(b2)) => match expr.data() {
+                ast::Expr::NEQ(_, _) => Ok(Some(b1 != b2)),
+                ast::Expr::EQ(_, _) => Ok(Some(b1 == b2)),
+                _ => unreachable!(),
+            },
+            _ => Ok(None),
+        },
         _ => Ok(None),
     }
 }
 
-fn expr_int(
-    expr: &ast::Node<ast::Expr>,
-    lexer: &dyn Lexer<u32>,
-) -> Result<Option<IntType>, String> {
+fn expr_int(expr: &ast::Node<ast::Expr>, lexer: &dyn Lexer<u32>) -> Result<Option<IntType>, String> {
     match expr.data() {
         ast::Expr::Int(i) => Ok(Some(*i)),
         ast::Expr::Neg(expr_node) => {
@@ -302,17 +265,15 @@ fn expr_int(
         }
         ast::Expr::Add(expr1_node, expr2_node)
         | ast::Expr::Sub(expr1_node, expr2_node)
-        | ast::Expr::Mul(expr1_node, expr2_node) => {
-            match (expr_int(expr1_node, lexer)?, expr_int(expr2_node, lexer)?) {
-                (Some(e1), Some(e2)) => match expr.data() {
-                    ast::Expr::Add(_, _) => Ok(Some(e1 + e2)),
-                    ast::Expr::Sub(_, _) => Ok(Some(e1 - e2)),
-                    ast::Expr::Mul(_, _) => Ok(Some(e1 * e2)),
-                    _ => unreachable!(),
-                },
-                _ => Ok(None),
-            }
-        }
+        | ast::Expr::Mul(expr1_node, expr2_node) => match (expr_int(expr1_node, lexer)?, expr_int(expr2_node, lexer)?) {
+            (Some(e1), Some(e2)) => match expr.data() {
+                ast::Expr::Add(_, _) => Ok(Some(e1 + e2)),
+                ast::Expr::Sub(_, _) => Ok(Some(e1 - e2)),
+                ast::Expr::Mul(_, _) => Ok(Some(e1 * e2)),
+                _ => unreachable!(),
+            },
+            _ => Ok(None),
+        },
         ast::Expr::Div(expr1_node, expr2_node) | ast::Expr::Mod(expr1_node, expr2_node) => {
             match (expr_int(expr1_node, lexer)?, expr_int(expr2_node, lexer)?) {
                 (_, Some(0)) => Err(wrap_error_msg(lexer, expr2_node.span(), "div/mod by 0")),
@@ -350,53 +311,37 @@ fn check_call(
     for (arg_prim, expr_node) in fun_arg_types.iter().zip(arg_nodes.iter()) {
         let expr_prim = check_expr(expr_node, venv, cfienv, lexer)?;
         if !cmp_prims(arg_prim, &expr_prim, &cfienv.2) {
-            return Err(type_mismatch_msg(
-                arg_prim.clone(),
-                &expr_prim,
-                lexer,
-                expr_node.span(),
-            ));
+            return Err(type_mismatch_msg(arg_prim.clone(), &expr_prim, lexer, expr_node.span()));
         }
     }
 
     Ok(fun_type.clone())
 }
 
-fn check_expr(
-    expr: &ast::Node<ast::Expr>,
-    venv: &VEnv,
-    cfienv: &CFIEnv,
-    lexer: &dyn Lexer<u32>,
-) -> Result<ast::Prim, String> {
+fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, cfienv: &CFIEnv, lexer: &dyn Lexer<u32>) -> Result<ast::Prim, String> {
     let expr_type = match expr.data() {
-        ast::Expr::Dot(expr_node, ident_node) => {
-            match check_expr(expr_node, venv, cfienv, lexer)? {
-                ast::Prim::Class(class_name) => {
-                    let members = match cfienv.0.get(&class_name) {
-                        None => return Err(no_such_msg(lexer, ident_node.span(), "class")),
-                        Some(members) => members,
-                    };
-                    match members.get(ident_node.data()) {
-                        None => return Err(no_such_msg(lexer, ident_node.span(), "field")),
-                        Some(ast::Type::Var(prim)) => prim.clone(),
-                        Some(ast::Type::Fun(_)) => {
-                            return Err(wrap_error_msg(
-                                lexer,
-                                expr_node.span(),
-                                "right side of . is a method",
-                            ))
-                        }
+        ast::Expr::Dot(expr_node, ident_node) => match check_expr(expr_node, venv, cfienv, lexer)? {
+            ast::Prim::Class(class_name) => {
+                let members = match cfienv.0.get(&class_name) {
+                    None => return Err(no_such_msg(lexer, ident_node.span(), "class")),
+                    Some(members) => members,
+                };
+                match members.get(ident_node.data()) {
+                    None => return Err(no_such_msg(lexer, ident_node.span(), "field")),
+                    Some(ast::Type::Var(prim)) => prim.clone(),
+                    Some(ast::Type::Fun(_)) => {
+                        return Err(wrap_error_msg(lexer, expr_node.span(), "right side of . is a method"))
                     }
                 }
-                non_class_prim => {
-                    return Err(wrap_error_msg(
-                        lexer,
-                        expr_node.span(),
-                        &format!("left side of . is a {:?}", non_class_prim),
-                    ))
-                }
             }
-        }
+            non_class_prim => {
+                return Err(wrap_error_msg(
+                    lexer,
+                    expr_node.span(),
+                    &format!("left side of . is a {:?}", non_class_prim),
+                ))
+            }
+        },
         ast::Expr::Mthd(expr_node, ident_node, arg_nodes) => {
             match check_expr(expr_node, venv, cfienv, lexer)? {
                 ast::Prim::Class(class_name) => {
@@ -407,23 +352,12 @@ fn check_expr(
                     match members.get(ident_node.data()) {
                         None => return Err(no_such_msg(lexer, ident_node.span(), "member")),
                         Some(ast::Type::Var(_)) => {
-                            return Err(wrap_error_msg(
-                                lexer,
-                                expr_node.span(),
-                                "right side of . is a field",
-                            ))
+                            return Err(wrap_error_msg(lexer, expr_node.span(), "right side of . is a field"))
                         }
                         Some(ast::Type::Fun(fun_type)) => {
                             let mut arg_nodes_with_self = arg_nodes.clone();
                             arg_nodes_with_self.insert(0, *(expr_node.clone())); // this
-                            check_call(
-                                fun_type,
-                                ident_node,
-                                &arg_nodes_with_self,
-                                venv,
-                                cfienv,
-                                lexer,
-                            )?
+                            check_call(fun_type, ident_node, &arg_nodes_with_self, venv, cfienv, lexer)?
                         }
                     }
                 }
@@ -438,13 +372,7 @@ fn check_expr(
         }
         ast::Expr::Fun(ident_node, arg_nodes) => {
             let fun_type = match cfienv.1.get(ident_node.data()) {
-                None => {
-                    return Err(wrap_error_msg(
-                        lexer,
-                        ident_node.span(),
-                        "use of undeclared function",
-                    ))
-                }
+                None => return Err(wrap_error_msg(lexer, ident_node.span(), "use of undeclared function")),
                 Some(ft) => ft,
             };
             check_call(fun_type, ident_node, arg_nodes, venv, cfienv, lexer)?
@@ -458,25 +386,11 @@ fn check_expr(
         ast::Expr::Str(_) => ast::Prim::Str,
         ast::Expr::Not(expr_node) => match check_expr(expr_node, venv, cfienv, lexer)? {
             ast::Prim::Bool => ast::Prim::Bool,
-            prim => {
-                return Err(type_mismatch_msg(
-                    ast::Prim::Bool,
-                    &prim,
-                    lexer,
-                    expr_node.span(),
-                ))
-            }
+            prim => return Err(type_mismatch_msg(ast::Prim::Bool, &prim, lexer, expr_node.span())),
         },
         ast::Expr::Neg(expr_node) => match check_expr(expr_node, venv, cfienv, lexer)? {
             ast::Prim::Int => ast::Prim::Int,
-            prim => {
-                return Err(type_mismatch_msg(
-                    ast::Prim::Int,
-                    &prim,
-                    lexer,
-                    expr_node.span(),
-                ))
-            }
+            prim => return Err(type_mismatch_msg(ast::Prim::Int, &prim, lexer, expr_node.span())),
         },
         ast::Expr::And(expr1_node, expr2_node) | ast::Expr::Or(expr1_node, expr2_node) => {
             let acceptable_prims = vec![(ast::Prim::Bool, ast::Prim::Bool)];
@@ -496,10 +410,7 @@ fn check_expr(
             }
         }
         ast::Expr::Add(expr1_node, expr2_node) => {
-            let acceptable_prims = vec![
-                (ast::Prim::Int, ast::Prim::Int),
-                (ast::Prim::Str, ast::Prim::Str),
-            ];
+            let acceptable_prims = vec![(ast::Prim::Int, ast::Prim::Int), (ast::Prim::Str, ast::Prim::Str)];
             match (
                 check_expr(expr1_node, venv, cfienv, lexer)?,
                 check_expr(expr2_node, venv, cfienv, lexer)?,
@@ -560,25 +471,18 @@ fn check_expr(
             let acceptable_prims = vec![
                 (ast::Prim::Bool, ast::Prim::Bool),
                 (ast::Prim::Int, ast::Prim::Int),
-                (
-                    ast::Prim::Class("C".to_string()),
-                    ast::Prim::Class("C".to_string()),
-                ),
+                (ast::Prim::Class("C".to_string()), ast::Prim::Class("C".to_string())),
             ];
             match (
                 check_expr(expr1_node, venv, cfienv, lexer)?,
                 check_expr(expr2_node, venv, cfienv, lexer)?,
             ) {
                 (ast::Prim::Class(c1), ast::Prim::Class(c2))
-                    if c1 == c2
-                        || is_subclass(&c1, &c2, &cfienv.2)
-                        || is_subclass(&c2, &c1, &cfienv.2) =>
+                    if c1 == c2 || is_subclass(&c1, &c2, &cfienv.2) || is_subclass(&c2, &c1, &cfienv.2) =>
                 {
                     ast::Prim::Bool
                 }
-                (ast::Prim::Bool, ast::Prim::Bool) | (ast::Prim::Int, ast::Prim::Int) => {
-                    ast::Prim::Bool
-                }
+                (ast::Prim::Bool, ast::Prim::Bool) | (ast::Prim::Int, ast::Prim::Int) => ast::Prim::Bool,
                 (prim1, prim2) => {
                     return Err(wrong_operator_arguments(
                         &acceptable_prims,
@@ -589,9 +493,7 @@ fn check_expr(
                 }
             }
         }
-        ast::Expr::New(ident_node) | ast::Expr::Null(ident_node) => {
-            ast::Prim::Class(ident_node.data().clone())
-        }
+        ast::Expr::New(ident_node) | ast::Expr::Null(ident_node) => ast::Prim::Class(ident_node.data().clone()),
     };
     expr.set_prim(&expr_type);
     Ok(expr_type)
@@ -631,34 +533,20 @@ fn check_stmt(
         ast::Stmt::Decl(prim_node, item_nodes) => {
             let decl_prim = prim_node.data();
             if let ast::Prim::Void = decl_prim {
-                return Err(wrap_error_msg(
-                    lexer,
-                    stmt.span(),
-                    "declaration of void variables",
-                ));
+                return Err(wrap_error_msg(lexer, stmt.span(), "declaration of void variables"));
             }
             for item_node in item_nodes {
                 let (var_name, var_prim) = match item_node.data() {
                     ast::Item::NoInit(ident_node) => (ident_node.data().clone(), decl_prim.clone()),
-                    ast::Item::Init(ident_node, expr_node) => (
-                        ident_node.data().clone(),
-                        check_expr(&expr_node, &mut venv, cfienv, lexer)?,
-                    ),
+                    ast::Item::Init(ident_node, expr_node) => {
+                        (ident_node.data().clone(), check_expr(&expr_node, &mut venv, cfienv, lexer)?)
+                    }
                 };
                 if !cmp_prims(&decl_prim, &var_prim, &cfienv.2) {
-                    return Err(type_mismatch_msg(
-                        decl_prim.clone(),
-                        &var_prim,
-                        lexer,
-                        item_node.span(),
-                    ));
+                    return Err(type_mismatch_msg(decl_prim.clone(), &var_prim, lexer, item_node.span()));
                 }
                 if let Some(_) = venv_get_in_scope(venv, &var_name) {
-                    return Err(wrap_error_msg(
-                        lexer,
-                        item_node.span(),
-                        "variable redeclared within block",
-                    ));
+                    return Err(wrap_error_msg(lexer, item_node.span(), "variable redeclared within block"));
                 }
                 venv_insert(venv, var_name, var_prim);
             }
@@ -667,23 +555,16 @@ fn check_stmt(
         ast::Stmt::Asgn(lhs_node, expr_node) => {
             let expr_prim = check_expr(&expr_node, &mut venv, cfienv, lexer)?;
             match lhs_node.data() {
-                ast::Expr::Var(ident_node) => {
-                    match venv_insert(venv, ident_node.data().clone(), expr_prim.clone()) {
-                        Some(var_prim) => {
-                            if cmp_prims(&var_prim, &expr_prim, &cfienv.2) {
-                                Ok(false)
-                            } else {
-                                Err(type_mismatch_msg(
-                                    var_prim,
-                                    &expr_prim,
-                                    lexer,
-                                    expr_node.span(),
-                                ))
-                            }
+                ast::Expr::Var(ident_node) => match venv_insert(venv, ident_node.data().clone(), expr_prim.clone()) {
+                    Some(var_prim) => {
+                        if cmp_prims(&var_prim, &expr_prim, &cfienv.2) {
+                            Ok(false)
+                        } else {
+                            Err(type_mismatch_msg(var_prim, &expr_prim, lexer, expr_node.span()))
                         }
-                        None => Err(undeclared_var_msg(lexer, ident_node.span())),
                     }
-                }
+                    None => Err(undeclared_var_msg(lexer, ident_node.span())),
+                },
                 ast::Expr::Dot(dot_lhs_node, dot_rhs_node) => {
                     let field_name = dot_rhs_node.data();
                     match check_expr(dot_lhs_node, venv, cfienv, lexer)? {
@@ -691,40 +572,19 @@ fn check_stmt(
                             let members_map = match cfienv.0.get(&class_name) {
                                 Some(members_map) => members_map,
                                 None => {
-                                    return Err(wrap_error_msg(
-                                        lexer,
-                                        dot_lhs_node.span(),
-                                        "cannot find class' members",
-                                    ));
+                                    return Err(wrap_error_msg(lexer, dot_lhs_node.span(), "cannot find class' members"));
                                 }
                             };
                             match members_map.get(field_name) {
-                                Some(ast::Type::Var(field_prim))
-                                    if cmp_prims(field_prim, &expr_prim, &cfienv.2) =>
-                                {
-                                    Ok(false)
-                                }
+                                Some(ast::Type::Var(field_prim)) if cmp_prims(field_prim, &expr_prim, &cfienv.2) => Ok(false),
                                 Some(ast::Type::Var(field_prim)) => {
-                                    return Err(type_mismatch_msg(
-                                        field_prim.clone(),
-                                        &expr_prim,
-                                        lexer,
-                                        expr_node.span(),
-                                    ));
+                                    return Err(type_mismatch_msg(field_prim.clone(), &expr_prim, lexer, expr_node.span()));
                                 }
                                 Some(ast::Type::Fun(_)) => {
-                                    return Err(wrap_error_msg(
-                                        lexer,
-                                        lhs_node.span(),
-                                        "assignment to method",
-                                    ));
+                                    return Err(wrap_error_msg(lexer, lhs_node.span(), "assignment to method"));
                                 }
                                 None => {
-                                    return Err(wrap_error_msg(
-                                        lexer,
-                                        lhs_node.span(),
-                                        "assignment to nonexistent field",
-                                    ));
+                                    return Err(wrap_error_msg(lexer, lhs_node.span(), "assignment to nonexistent field"));
                                 }
                             }
                         }
@@ -750,24 +610,14 @@ fn check_stmt(
             let ident = ident_node.data().clone();
             match venv_get(venv, &ident) {
                 Some(ast::Prim::Int) => Ok(false),
-                Some(prim) => Err(type_mismatch_msg(
-                    ast::Prim::Int,
-                    &prim,
-                    lexer,
-                    ident_node.span(),
-                )),
+                Some(prim) => Err(type_mismatch_msg(ast::Prim::Int, &prim, lexer, ident_node.span())),
                 None => Err(undeclared_var_msg(lexer, ident_node.span())),
             }
         }
         ast::Stmt::Ret(expr_node) => {
             let expr_prim = check_expr(&expr_node, &mut venv, cfienv, lexer)?;
             if !cmp_prims(fn_prim, &expr_prim, &cfienv.2) {
-                Err(wrong_return_msg(
-                    fn_prim.clone(),
-                    &expr_prim,
-                    lexer,
-                    stmt.span(),
-                ))
+                Err(wrong_return_msg(fn_prim.clone(), &expr_prim, lexer, stmt.span()))
             } else {
                 Ok(true)
             }
@@ -776,17 +626,10 @@ fn check_stmt(
             if let ast::Prim::Void = fn_prim {
                 Ok(true)
             } else {
-                Err(wrong_return_msg(
-                    fn_prim.clone(),
-                    &ast::Prim::Void,
-                    lexer,
-                    stmt.span(),
-                ))
+                Err(wrong_return_msg(fn_prim.clone(), &ast::Prim::Void, lexer, stmt.span()))
             }
         }
-        ast::Stmt::Block(block_node) => {
-            check_block(block_node.data(), fn_prim, &mut venv, cfienv, lexer)
-        }
+        ast::Stmt::Block(block_node) => check_block(block_node.data(), fn_prim, &mut venv, cfienv, lexer),
         ast::Stmt::If(expr_node, stmt_node) | ast::Stmt::While(expr_node, stmt_node) => {
             let expr_prim = check_expr(&expr_node, &mut venv, cfienv, lexer)?;
             if let ast::Prim::Bool = expr_prim {
@@ -799,24 +642,17 @@ fn check_stmt(
                     Ok(false)
                 }
             } else {
-                Err(type_mismatch_msg(
-                    ast::Prim::Bool,
-                    &expr_prim,
-                    lexer,
-                    expr_node.span(),
-                ))
+                Err(type_mismatch_msg(ast::Prim::Bool, &expr_prim, lexer, expr_node.span()))
             }
         }
         ast::Stmt::IfElse(expr_node, stmt_true_node, stmt_false_node) => {
             let expr_prim = check_expr(&expr_node, &mut venv, cfienv, lexer)?;
             if let ast::Prim::Bool = expr_prim {
                 venv_enter_scope(venv);
-                let stmt_true_returns =
-                    check_stmt(&stmt_true_node, fn_prim, &mut venv, cfienv, lexer)?;
+                let stmt_true_returns = check_stmt(&stmt_true_node, fn_prim, &mut venv, cfienv, lexer)?;
                 venv_exit_scope(venv);
                 venv_enter_scope(venv);
-                let stmt_false_returns =
-                    check_stmt(&stmt_false_node, fn_prim, &mut venv, cfienv, lexer)?;
+                let stmt_false_returns = check_stmt(&stmt_false_node, fn_prim, &mut venv, cfienv, lexer)?;
                 venv_exit_scope(venv);
                 match expr_bool(expr_node, lexer)? {
                     Some(true) => Ok(stmt_true_returns),
@@ -824,23 +660,13 @@ fn check_stmt(
                     None => Ok(stmt_true_returns && stmt_false_returns),
                 }
             } else {
-                Err(type_mismatch_msg(
-                    ast::Prim::Bool,
-                    &expr_prim,
-                    lexer,
-                    expr_node.span(),
-                ))
+                Err(type_mismatch_msg(ast::Prim::Bool, &expr_prim, lexer, expr_node.span()))
             }
         }
     }
 }
 
-fn check_fn(
-    fdef: &ast::Node<ast::FunDef>,
-    venv: &mut VEnv,
-    cfienv: &CFIEnv,
-    lexer: &dyn Lexer<u32>,
-) -> Result<(), String> {
+fn check_fn(fdef: &ast::Node<ast::FunDef>, venv: &mut VEnv, cfienv: &CFIEnv, lexer: &dyn Lexer<u32>) -> Result<(), String> {
     let (prim_node, _, arg_nodes, block_node) = fdef.data();
     for arg_node in arg_nodes {
         let (arg_prim_node, arg_ident_node) = arg_node.data();
@@ -857,11 +683,7 @@ fn check_fn(
         ()
     } else {
         if !fn_always_returns {
-            return Err(wrap_error_msg(
-                lexer,
-                fdef.span(),
-                "nonvoid function does not return",
-            ));
+            return Err(wrap_error_msg(lexer, fdef.span(), "nonvoid function does not return"));
         }
     }
 
@@ -877,13 +699,7 @@ fn register_superclasses_in_env(
     let ident = ident_node.data();
     let parent_ident_node_option = match cdefs.get(ident) {
         Some(cdef) => &cdef.data().1,
-        None => {
-            return Err(wrap_error_msg(
-                lexer,
-                ident_node.span(),
-                "nonexistent class",
-            ))
-        }
+        None => return Err(wrap_error_msg(lexer, ident_node.span(), "nonexistent class")),
     };
 
     if let Some(_) = ienv.get(ident) {
@@ -929,15 +745,8 @@ fn register_class_in_env(
 
     for field_node in field_nodes {
         let (prim_node, ident_node) = field_node.data();
-        if let Some(_) = members.insert(
-            ident_node.data().to_string(),
-            ast::Type::Var(prim_node.data().clone()),
-        ) {
-            return Err(wrap_error_msg(
-                lexer,
-                ident_node.span(),
-                "field name not unique",
-            ));
+        if let Some(_) = members.insert(ident_node.data().to_string(), ast::Type::Var(prim_node.data().clone())) {
+            return Err(wrap_error_msg(lexer, ident_node.span(), "field name not unique"));
         }
     }
 
@@ -950,11 +759,7 @@ fn register_class_in_env(
 
         if let Some(old_type) = members.insert(ident_node.data().to_string(), new_type.clone()) {
             if !cmp_types(&old_type, &new_type, ienv) {
-                return Err(wrap_error_msg(
-                    lexer,
-                    method_node.span(),
-                    "method override type mismatch",
-                ));
+                return Err(wrap_error_msg(lexer, method_node.span(), "method override type mismatch"));
             }
         }
     }
@@ -963,10 +768,7 @@ fn register_class_in_env(
     Ok(())
 }
 
-fn class_env(
-    cdefs: &Vec<ast::Node<ast::ClassDef>>,
-    lexer: &dyn Lexer<u32>,
-) -> Result<(CEnv, IEnv), String> {
+fn class_env(cdefs: &Vec<ast::Node<ast::ClassDef>>, lexer: &dyn Lexer<u32>) -> Result<(CEnv, IEnv), String> {
     let mut cenv: CEnv = HashMap::new();
     let mut ienv: IEnv = HashMap::new();
     let mut cdefs_map: HashMap<ast::Ident, ast::Node<ast::ClassDef>> = HashMap::new();
@@ -974,11 +776,7 @@ fn class_env(
         match cdefs_map.insert(cdef.data().0.data().clone(), cdef.clone()) {
             None => (),
             Some(class_def_node) => {
-                return Err(wrap_error_msg(
-                    lexer,
-                    class_def_node.span(),
-                    "class name not unique",
-                ));
+                return Err(wrap_error_msg(lexer, class_def_node.span(), "class name not unique"));
             }
         }
     }
@@ -989,20 +787,13 @@ fn class_env(
     Ok((cenv, ienv))
 }
 
-fn arg_types(
-    arg_nodes: &Vec<ast::Node<ast::Arg>>,
-    lexer: &dyn Lexer<u32>,
-) -> Result<Vec<ast::Prim>, String> {
+fn arg_types(arg_nodes: &Vec<ast::Node<ast::Arg>>, lexer: &dyn Lexer<u32>) -> Result<Vec<ast::Prim>, String> {
     let mut arg_types = Vec::new();
     for arg_node in arg_nodes {
         let (arg_prim_node, _) = arg_node.data();
         let arg_prim = arg_prim_node.data();
         if let ast::Prim::Void = arg_prim {
-            return Err(wrap_error_msg(
-                lexer,
-                arg_node.span(),
-                "function argument is void",
-            ));
+            return Err(wrap_error_msg(lexer, arg_node.span(), "function argument is void"));
         } else {
             arg_types.push(arg_prim.clone());
         }
@@ -1012,14 +803,8 @@ fn arg_types(
 
 fn fn_env(fdefs: &Vec<ast::Node<ast::FunDef>>, lexer: &dyn Lexer<u32>) -> Result<FEnv, String> {
     let mut fenv: FEnv = [
-        (
-            "printInt".to_string(),
-            (ast::Prim::Void, vec![ast::Prim::Int]),
-        ),
-        (
-            "printString".to_string(),
-            (ast::Prim::Void, vec![ast::Prim::Str]),
-        ),
+        ("printInt".to_string(), (ast::Prim::Void, vec![ast::Prim::Int])),
+        ("printString".to_string(), (ast::Prim::Void, vec![ast::Prim::Str])),
         ("error".to_string(), (ast::Prim::Void, vec![])),
         ("readInt".to_string(), (ast::Prim::Int, vec![])),
         ("readString".to_string(), (ast::Prim::Str, vec![])),
@@ -1034,11 +819,7 @@ fn fn_env(fdefs: &Vec<ast::Node<ast::FunDef>>, lexer: &dyn Lexer<u32>) -> Result
         let arg_types = arg_types(arg_nodes, lexer)?;
         let (fn_type, fn_name) = (prim_node.data(), ident_node.data());
         if let Some(_) = fenv.insert(fn_name.clone(), (fn_type.clone(), arg_types)) {
-            return Err(wrap_error_msg(
-                lexer,
-                ident_node.span(),
-                "function name not unique",
-            ));
+            return Err(wrap_error_msg(lexer, ident_node.span(), "function name not unique"));
         }
     }
 

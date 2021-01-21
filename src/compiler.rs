@@ -185,11 +185,7 @@ fn directives(fdefs: &Vec<ast::Node<ast::FunDef>>, output: &mut Output) {
     // TODO: vtable
 }
 
-fn register_class_in_env(
-    ident: &ast::Ident,
-    cenv: &mut CEnv,
-    cdefs: &HashMap<ast::Ident, ast::Node<ast::ClassDef>>,
-) {
+fn register_class_in_env(ident: &ast::Ident, cenv: &mut CEnv, cdefs: &HashMap<ast::Ident, ast::Node<ast::ClassDef>>) {
     let cdef = cdefs.get(ident).unwrap();
     let (self_ident_node, parent_ident_node_option, field_nodes, method_nodes) = cdef.data();
     let self_ident = self_ident_node.data();
@@ -218,10 +214,7 @@ fn register_class_in_env(
         let method_ident = method_node.data().1.data();
         let method_entry = (method_ident.to_string(), self_ident.to_string());
 
-        match foffsets
-            .iter()
-            .position(|(mname, _mimpl)| mname == method_ident)
-        {
+        match foffsets.iter().position(|(mname, _mimpl)| mname == method_ident) {
             Some(idx) => foffsets[idx] = method_entry,
             None => foffsets.push(method_entry),
         }
@@ -259,9 +252,7 @@ pub fn compile(cfdefs: &(Vec<ast::Node<ast::ClassDef>>, Vec<ast::Node<ast::FunDe
     directives(&cfdefs.1, &mut output);
 
     labels.insert(EMPTY_STRING_LABEL.to_string());
-    output
-        .rodata
-        .push(format!("{}: .asciz \"\"", EMPTY_STRING_LABEL));
+    output.rodata.push(format!("{}: .asciz \"\"", EMPTY_STRING_LABEL));
 
     for fdef in &cfdefs.1 {
         compile_fn(fdef, &cenv, &mut labels, &mut output);
@@ -284,19 +275,11 @@ pub fn compile(cfdefs: &(Vec<ast::Node<ast::ClassDef>>, Vec<ast::Node<ast::FunDe
     }
 }
 
-fn compile_fn(
-    fdef: &ast::Node<ast::FunDef>,
-    cenv: &CEnv,
-    labels: &mut Labels,
-    output: &mut Output,
-) {
+fn compile_fn(fdef: &ast::Node<ast::FunDef>, cenv: &CEnv, labels: &mut Labels, output: &mut Output) {
     let mut vstack: VStack = (vec![], vec![0]);
 
     let (_, ident_node, arg_nodes, block_node) = fdef.data();
-    let arg_names: Vec<ast::Ident> = arg_nodes
-        .iter()
-        .map(|arg_node| arg_node.data().1.data().clone())
-        .collect();
+    let arg_names: Vec<ast::Ident> = arg_nodes.iter().map(|arg_node| arg_node.data().1.data().clone()).collect();
     let stack_args_count = if arg_names.len() > ARG_REGS.len() {
         arg_names.len() - ARG_REGS.len()
     } else {
@@ -305,21 +288,14 @@ fn compile_fn(
 
     output.text.push(format!("{}:", ident_node.data()));
     output.text.push(format!("{} {}", OP_PUSH, REG_BASE));
-    output
-        .text
-        .push(format!("{} {}, {}", OP_MOV, REG_BASE, REG_STACK));
+    output.text.push(format!("{} {}, {}", OP_MOV, REG_BASE, REG_STACK));
 
     for i in 0..std::cmp::min(ARG_REGS.len(), arg_names.len()) {
         push_wrapper(ARG_REGS[i], Some(&arg_names[i]), &mut vstack, output);
     }
     for i in 0..stack_args_count {
         push_wrapper(
-            &format!(
-                "{} ptr [{} + {}]",
-                MEM_WORD_SIZE,
-                REG_BASE,
-                STACK_ARG_OFFSET + i * VAR_SIZE
-            ),
+            &format!("{} ptr [{} + {}]", MEM_WORD_SIZE, REG_BASE, STACK_ARG_OFFSET + i * VAR_SIZE),
             Some(&arg_names[ARG_REGS.len() + i]),
             &mut vstack,
             output,
@@ -331,13 +307,7 @@ fn compile_fn(
     output.text.extend(code_epilogue());
 }
 
-fn compile_block(
-    stmts: &Vec<ast::Node<ast::Stmt>>,
-    vstack: &mut VStack,
-    cenv: &CEnv,
-    labels: &mut Labels,
-    output: &mut Output,
-) {
+fn compile_block(stmts: &Vec<ast::Node<ast::Stmt>>, vstack: &mut VStack, cenv: &CEnv, labels: &mut Labels, output: &mut Output) {
     vstack_enter_scope(vstack);
 
     for stmt in stmts {
@@ -347,22 +317,14 @@ fn compile_block(
     vstack_exit_scope(vstack, output);
 }
 
-fn compile_stmt(
-    stmt: &ast::Node<ast::Stmt>,
-    vstack: &mut VStack,
-    cenv: &CEnv,
-    labels: &mut Labels,
-    output: &mut Output,
-) {
+fn compile_stmt(stmt: &ast::Node<ast::Stmt>, vstack: &mut VStack, cenv: &CEnv, labels: &mut Labels, output: &mut Output) {
     match stmt.data() {
         ast::Stmt::Empty => (),
         ast::Stmt::Expr(expr_node) => {
             compile_expr_ptr(expr_node, vstack, cenv, labels, output);
             vstack_shrink_stack(vstack, 1, output);
         }
-        ast::Stmt::Block(block_node) => {
-            compile_block(block_node.data(), vstack, cenv, labels, output)
-        }
+        ast::Stmt::Block(block_node) => compile_block(block_node.data(), vstack, cenv, labels, output),
         ast::Stmt::Incr(ident_node) | ast::Stmt::Decr(ident_node) => {
             let offset = vstack_get_offset(vstack, ident_node.data());
             let op_code = match stmt.data() {
@@ -370,10 +332,9 @@ fn compile_stmt(
                 ast::Stmt::Decr(_) => OP_DEC,
                 _ => unreachable!(),
             };
-            output.text.push(format!(
-                "{} {} ptr [{} - {}]",
-                op_code, MEM_WORD_SIZE, REG_BASE, offset
-            ));
+            output
+                .text
+                .push(format!("{} {} ptr [{} - {}]", op_code, MEM_WORD_SIZE, REG_BASE, offset));
         }
         ast::Stmt::VRet => {
             vstack_exit_fn(vstack, output);
@@ -393,9 +354,7 @@ fn compile_stmt(
                         match prim_node.data() {
                             ast::Prim::Int | ast::Prim::Bool | ast::Prim::Class(_) => {
                                 let default_value = 0; // VAL_FALSE == 0 == DEFAULT_INT = NULL
-                                output
-                                    .text
-                                    .push(format!("{} {}, {}", OP_MOV, REG_MAIN, default_value));
+                                output.text.push(format!("{} {}, {}", OP_MOV, REG_MAIN, default_value));
                             }
                             ast::Prim::Str => {
                                 output.text.push(format!(
@@ -420,12 +379,8 @@ fn compile_stmt(
             match lhs_expr_node.data() {
                 ast::Expr::Var(ident_node) => {
                     let offset = vstack_get_offset(vstack, ident_node.data());
-                    output
-                        .text
-                        .push(format!("{} {}, {}", OP_MOV, REG_MAIN, REG_BASE));
-                    output
-                        .text
-                        .push(format!("{} {}, {}", OP_SUB, REG_MAIN, offset));
+                    output.text.push(format!("{} {}, {}", OP_MOV, REG_MAIN, REG_BASE));
+                    output.text.push(format!("{} {}, {}", OP_SUB, REG_MAIN, offset));
                     push_wrapper(REG_MAIN, None, vstack, output);
                 }
                 ast::Expr::Dot(_, _) => {
@@ -435,11 +390,7 @@ fn compile_stmt(
             }
 
             pop_wrapper(REG_MAIN, vstack, output);
-            pop_wrapper(
-                &format!("{} ptr [{}]", MEM_WORD_SIZE, REG_MAIN),
-                vstack,
-                output,
-            );
+            pop_wrapper(&format!("{} ptr [{}]", MEM_WORD_SIZE, REG_MAIN), vstack, output);
         }
         ast::Stmt::If(expr_node, stmt_node) => {
             let if_label_after = format!("if_{}_after", labels.len());
@@ -447,9 +398,7 @@ fn compile_stmt(
 
             compile_expr_val(expr_node, vstack, cenv, labels, output);
             pop_wrapper(REG_MAIN, vstack, output);
-            output
-                .text
-                .push(format!("{} {}, {}", OP_CMP, REG_MAIN, VAL_FALSE));
+            output.text.push(format!("{} {}, {}", OP_CMP, REG_MAIN, VAL_FALSE));
             output.text.push(format!("{} {}", JMP_EQ, if_label_after));
             compile_block(&vec![*stmt_node.clone()], vstack, cenv, labels, output);
             output.text.push(format!("{}:", if_label_after));
@@ -466,31 +415,17 @@ fn compile_stmt(
 
             compile_expr_val(expr_node, vstack, cenv, labels, output);
             pop_wrapper(REG_MAIN, vstack, output);
-            output
-                .text
-                .push(format!("{} {}, {}", OP_CMP, REG_MAIN, VAL_FALSE));
+            output.text.push(format!("{} {}, {}", OP_CMP, REG_MAIN, VAL_FALSE));
             output.text.push(format!("{} {}", JMP_EQ, cond_label_false));
-            output
-                .text
-                .push(format!("{} {}", JMP_ALWAYS, cond_label_true));
+            output.text.push(format!("{} {}", JMP_ALWAYS, cond_label_true));
 
             output.text.push(format!("{}:", &cond_label_true));
             compile_block(&vec![*true_stmt_node.clone()], vstack, cenv, labels, output);
-            output
-                .text
-                .push(format!("{} {}", JMP_ALWAYS, cond_label_after));
+            output.text.push(format!("{} {}", JMP_ALWAYS, cond_label_after));
 
             output.text.push(format!("{}:", &cond_label_false));
-            compile_block(
-                &vec![*false_stmt_node.clone()],
-                vstack,
-                cenv,
-                labels,
-                output,
-            );
-            output
-                .text
-                .push(format!("{} {}", JMP_ALWAYS, cond_label_after));
+            compile_block(&vec![*false_stmt_node.clone()], vstack, cenv, labels, output);
+            output.text.push(format!("{} {}", JMP_ALWAYS, cond_label_after));
 
             output.text.push(format!("{}:", &cond_label_after));
         }
@@ -502,17 +437,11 @@ fn compile_stmt(
             output.text.push(format!("{}:", &while_label_cond));
             compile_expr_val(expr_node, vstack, cenv, labels, output);
             pop_wrapper(REG_MAIN, vstack, output);
-            output
-                .text
-                .push(format!("{} {}, {}", OP_CMP, REG_MAIN, VAL_FALSE));
-            output
-                .text
-                .push(format!("{} {}", JMP_EQ, while_label_after));
+            output.text.push(format!("{} {}, {}", OP_CMP, REG_MAIN, VAL_FALSE));
+            output.text.push(format!("{} {}", JMP_EQ, while_label_after));
 
             compile_block(&vec![*stmt_node.clone()], vstack, cenv, labels, output);
-            output
-                .text
-                .push(format!("{} {}", JMP_ALWAYS, while_label_cond));
+            output.text.push(format!("{} {}", JMP_ALWAYS, while_label_cond));
 
             output.text.push(format!("{}:", &while_label_after));
         }
@@ -520,23 +449,12 @@ fn compile_stmt(
 }
 
 // na stosie jest wartość (która dla obiektów i stringów jest wskaźnikiem)
-fn compile_expr_val(
-    expr: &ast::Node<ast::Expr>,
-    vstack: &mut VStack,
-    cenv: &CEnv,
-    labels: &mut Labels,
-    output: &mut Output,
-) {
+fn compile_expr_val(expr: &ast::Node<ast::Expr>, vstack: &mut VStack, cenv: &CEnv, labels: &mut Labels, output: &mut Output) {
     compile_expr_ptr(expr, vstack, cenv, labels, output);
     match expr.data() {
         ast::Expr::Var(_) | ast::Expr::Dot(_, _) => {
             pop_wrapper(REG_MAIN, vstack, output);
-            push_wrapper(
-                &format!("{} ptr [{}]", MEM_WORD_SIZE, REG_MAIN),
-                None,
-                vstack,
-                output,
-            );
+            push_wrapper(&format!("{} ptr [{}]", MEM_WORD_SIZE, REG_MAIN), None, vstack, output);
         }
         _ => (),
     }
@@ -544,46 +462,32 @@ fn compile_expr_val(
 
 // na stosie jest wartość (która dla obiektów i stingów jest wskaźnikiem)
 //                lub wskaźnik (w przypadku zmiennej lub pola struktury)
-fn compile_expr_ptr(
-    expr: &ast::Node<ast::Expr>,
-    vstack: &mut VStack,
-    cenv: &CEnv,
-    labels: &mut Labels,
-    output: &mut Output,
-) {
+fn compile_expr_ptr(expr: &ast::Node<ast::Expr>, vstack: &mut VStack, cenv: &CEnv, labels: &mut Labels, output: &mut Output) {
     match expr.data() {
         ast::Expr::Int(n) => {
             output.text.push(format!("{} {}, {}", OP_MOV, REG_MAIN, n));
             push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::Bool(b) => {
-            output.text.push(format!(
-                "{} {}, {}",
-                OP_MOV,
-                REG_MAIN,
-                if *b { VAL_TRUE } else { VAL_FALSE }
-            ));
+            output
+                .text
+                .push(format!("{} {}, {}", OP_MOV, REG_MAIN, if *b { VAL_TRUE } else { VAL_FALSE }));
             push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::Str(s) => {
             let label = format!("str_{}", labels.len() + 1);
             labels.insert(label.clone());
             output.rodata.push(format!("{}: .asciz {}", label, s));
-            output.text.push(format!(
-                "{} {}, {} ptr [{}]",
-                OP_LEA, REG_MAIN, MEM_WORD_SIZE, label
-            ));
+            output
+                .text
+                .push(format!("{} {}, {} ptr [{}]", OP_LEA, REG_MAIN, MEM_WORD_SIZE, label));
             push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::Var(ident_node) => {
             if vstack_local_exists(vstack, ident_node.data()) {
                 let offset = vstack_get_offset(vstack, ident_node.data());
-                output
-                    .text
-                    .push(format!("{} {}, {}", OP_MOV, REG_MAIN, REG_BASE));
-                output
-                    .text
-                    .push(format!("{} {}, {}", OP_SUB, REG_MAIN, offset));
+                output.text.push(format!("{} {}, {}", OP_MOV, REG_MAIN, REG_BASE));
+                output.text.push(format!("{} {}, {}", OP_SUB, REG_MAIN, offset));
                 push_wrapper(REG_MAIN, None, vstack, output);
             } else {
                 // problem: w której funkcji jestem? (dodatkowy argument do wszystkiego)?
@@ -592,21 +496,10 @@ fn compile_expr_ptr(
                 let self_offset = vstack_get_offset(vstack, &SELF_IDENT.to_string());
                 let field_offset = 0; // * VAR_SIZE
 
-                output
-                    .text
-                    .push(format!("{} {}, {}", OP_MOV, REG_MAIN, REG_BASE));
-                output
-                    .text
-                    .push(format!("{} {}, {}", OP_SUB, REG_MAIN, self_offset));
-                output
-                    .text
-                    .push(format!("{} {}, {}", OP_ADD, REG_MAIN, field_offset));
-                push_wrapper(
-                    &format!("{} ptr [{}]", MEM_WORD_SIZE, REG_MAIN),
-                    None,
-                    vstack,
-                    output,
-                );
+                output.text.push(format!("{} {}, {}", OP_MOV, REG_MAIN, REG_BASE));
+                output.text.push(format!("{} {}, {}", OP_SUB, REG_MAIN, self_offset));
+                output.text.push(format!("{} {}, {}", OP_ADD, REG_MAIN, field_offset));
+                push_wrapper(&format!("{} ptr [{}]", MEM_WORD_SIZE, REG_MAIN), None, vstack, output);
             }
         }
         ast::Expr::Neg(expr_node) => {
@@ -618,15 +511,9 @@ fn compile_expr_ptr(
         ast::Expr::Not(expr_node) => {
             compile_expr_val(expr_node, vstack, cenv, labels, output);
             pop_wrapper(REG_AUX, vstack, output);
-            output
-                .text
-                .push(format!("{} {}, {}", OP_XOR, REG_TMP, REG_TMP));
-            output
-                .text
-                .push(format!("{} {}, {}", OP_CMP, REG_AUX, VAL_FALSE));
-            output
-                .text
-                .push(format!("{} {}", OP_SETCC_EQ, REG_TMP_BYTE));
+            output.text.push(format!("{} {}, {}", OP_XOR, REG_TMP, REG_TMP));
+            output.text.push(format!("{} {}, {}", OP_CMP, REG_AUX, VAL_FALSE));
+            output.text.push(format!("{} {}", OP_SETCC_EQ, REG_TMP_BYTE));
             push_wrapper(REG_TMP, None, vstack, output);
         }
         ast::Expr::Fun(fname_node, arg_expr_nodes) => {
@@ -662,9 +549,7 @@ fn compile_expr_ptr(
 
             push_wrapper(REG_FN_RETVAL, None, vstack, output);
         }
-        ast::Expr::Add(expr1, expr2)
-        | ast::Expr::Sub(expr1, expr2)
-        | ast::Expr::Mul(expr1, expr2) => {
+        ast::Expr::Add(expr1, expr2) | ast::Expr::Sub(expr1, expr2) | ast::Expr::Mul(expr1, expr2) => {
             compile_expr_val(&expr1, vstack, cenv, labels, output);
             compile_expr_val(&expr2, vstack, cenv, labels, output);
             pop_wrapper(REG_AUX, vstack, output);
@@ -676,9 +561,7 @@ fn compile_expr_ptr(
                 ast::Expr::Mul(_, _) => OP_IMUL,
                 _ => unreachable!(),
             };
-            output
-                .text
-                .push(format!("{} {}, {}", opcode, REG_MAIN, REG_AUX));
+            output.text.push(format!("{} {}, {}", opcode, REG_MAIN, REG_AUX));
 
             push_wrapper(REG_MAIN, None, vstack, output);
         }
@@ -709,17 +592,12 @@ fn compile_expr_ptr(
             labels.insert(or_and_label_after.clone());
 
             compile_expr_val(&expr1, vstack, cenv, labels, output);
-            output.text.push(format!(
-                "{} {}, {} ptr [{}]",
-                OP_MOV, REG_MAIN, MEM_WORD_SIZE, REG_STACK
-            ));
+            output
+                .text
+                .push(format!("{} {}, {} ptr [{}]", OP_MOV, REG_MAIN, MEM_WORD_SIZE, REG_STACK));
 
-            output
-                .text
-                .push(format!("{} {}, {}", OP_CMP, REG_MAIN, skipping_value));
-            output
-                .text
-                .push(format!("{} {}", JMP_EQ, or_and_label_after));
+            output.text.push(format!("{} {}, {}", OP_CMP, REG_MAIN, skipping_value));
+            output.text.push(format!("{} {}", JMP_EQ, or_and_label_after));
 
             vstack_shrink_stack(vstack, 1, output);
             compile_expr_val(&expr2, vstack, cenv, labels, output);
@@ -735,13 +613,9 @@ fn compile_expr_ptr(
             compile_expr_val(&expr2, vstack, cenv, labels, output);
             pop_wrapper(REG_AUX, vstack, output);
             pop_wrapper(REG_MAIN, vstack, output);
-            output
-                .text
-                .push(format!("{} {}, {}", OP_XOR, REG_TMP, REG_TMP));
+            output.text.push(format!("{} {}, {}", OP_XOR, REG_TMP, REG_TMP));
 
-            output
-                .text
-                .push(format!("{} {}, {}", OP_CMP, REG_MAIN, REG_AUX));
+            output.text.push(format!("{} {}, {}", OP_CMP, REG_MAIN, REG_AUX));
             let opcode = match expr.data() {
                 ast::Expr::EQ(_, _) => OP_SETCC_EQ,
                 ast::Expr::NEQ(_, _) => OP_SETCC_NEQ,
@@ -762,9 +636,7 @@ fn compile_expr_ptr(
             // TODO: inicjalizacja stringów na puste
             // TODO: ustawienie vtable (argument do __new?)
             let object_size = cenv.get(ident_node.data()).unwrap().0.len() * VAR_SIZE;
-            output
-                .text
-                .push(format!("{} {}, {}", OP_MOV, ARG_REGS[0], object_size));
+            output.text.push(format!("{} {}, {}", OP_MOV, ARG_REGS[0], object_size));
             output.text.push(format!("{} {}", OP_CALL, FN_NEW));
             push_wrapper(REG_FN_RETVAL, None, vstack, output);
         }
@@ -783,16 +655,13 @@ fn compile_expr_ptr(
                         .unwrap()
                         * VAR_SIZE;
 
-                    output
-                        .text
-                        .push(format!("{} {}, {}", OP_ADD, REG_MAIN, voffset));
+                    output.text.push(format!("{} {}, {}", OP_ADD, REG_MAIN, voffset));
 
                     // dereferencjujemy tylko klasę
                     if let ast::Prim::Class(_) = expr.get_prim() {
-                        output.text.push(format!(
-                            "{} {}, {} ptr [{}]",
-                            OP_MOV, REG_AUX, MEM_WORD_SIZE, REG_MAIN
-                        ));
+                        output
+                            .text
+                            .push(format!("{} {}, {} ptr [{}]", OP_MOV, REG_AUX, MEM_WORD_SIZE, REG_MAIN));
                         push_wrapper(REG_AUX, None, vstack, output);
                     } else {
                         push_wrapper(REG_MAIN, None, vstack, output);
