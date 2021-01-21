@@ -424,7 +424,7 @@ fn compile_stmt(
                     push_wrapper(REG_MAIN, None, vstack, output);
                 }
                 ast::Expr::Dot(_, _) => {
-                    compile_expr_ptr(rhs_expr_node, vstack, cenv, labels, output);
+                    compile_expr_ptr(lhs_expr_node, vstack, cenv, labels, output);
                 }
                 _ => unreachable!(),
             }
