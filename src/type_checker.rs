@@ -554,6 +554,8 @@ fn check_stmt(
         }
         ast::Stmt::Asgn(lhs_node, expr_node) => {
             let expr_prim = check_expr(&expr_node, &mut venv, cfienv, lexer)?;
+            let lhs_prim = check_expr(lhs_node, venv, cfienv, lexer)?;
+            lhs_node.set_prim(&lhs_prim);
             match lhs_node.data() {
                 ast::Expr::Var(ident_node) => match venv_insert(venv, ident_node.data().clone(), expr_prim.clone()) {
                     Some(var_prim) => {

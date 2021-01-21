@@ -99,12 +99,6 @@ struct Output {
     text: Vec<String>,
 }
 
-fn error(msg: &str) -> ! {
-    eprintln!("ERROR");
-    eprintln!("type checker didn't catch error: {}", msg);
-    std::process::exit(42)
-}
-
 fn push_wrapper(val: &str, name: Option<&str>, vstack: &mut VStack, output: &mut Output) {
     let stack_name = match name {
         Some(s) => s,
@@ -120,10 +114,7 @@ fn pop_wrapper(target: &str, vstack: &mut VStack, output: &mut Output) {
 }
 
 fn vstack_get_offset(vstack: &VStack, ident: &ast::Ident) -> usize {
-    match vstack.0.iter().rposition(|i| i == ident) {
-        None => error(&format!("use of undeclared variable {}", ident)),
-        Some(n) => n * VAR_SIZE + VSTACK_VAR_OFFSET,
-    }
+    vstack.0.iter().rposition(|i| i == ident).unwrap() * VAR_SIZE + VSTACK_VAR_OFFSET
 }
 
 fn vstack_enter_scope(vstack: &mut VStack) {
@@ -132,10 +123,7 @@ fn vstack_enter_scope(vstack: &mut VStack) {
 
 fn vstack_exit_scope(vstack: &mut VStack, output: &mut Output) {
     let h_before = vstack.0.len();
-    let h_after = match vstack.1.pop() {
-        None => error("too many scope exits"),
-        Some(h) => h,
-    };
+    let h_after = vstack.1.pop().unwrap();
 
     vstack.0.truncate(h_after);
     if h_after != h_before {
