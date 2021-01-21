@@ -10,6 +10,7 @@ static MEM_WORD_SIZE: &str = "qword";
 static VAR_SIZE: usize = std::mem::size_of::<IntType>();
 
 static FN_STRCAT: &str = "__strcat";
+static FN_NEW: &str = "__new";
 
 static REG_MAIN: &str = "r11";
 static REG_AUX: &str = "r10";
@@ -157,11 +158,11 @@ fn code_shrink_stack(n: usize) -> String {
     format!("{} {}, {}", OP_ADD, REG_STACK, n * VAR_SIZE)
 }
 
-fn code_epilogue() -> String {
+fn code_epilogue() -> Vec<String> {
     let s1 = format!("{} {}, {}", OP_MOV, REG_STACK, REG_BASE);
     let s2 = format!("{} {}", OP_POP, REG_BASE);
     let s3 = format!("{}", OP_RET);
-    format!("{}\n{}\n{}", s1, s2, s3)
+    vec![s1, s2, s3]
 }
 
 fn directives(fdefs: &Vec<ast::Node<ast::FunDef>>, output: &mut Output) {
@@ -169,7 +170,7 @@ fn directives(fdefs: &Vec<ast::Node<ast::FunDef>>, output: &mut Output) {
 
     for fdef in fdefs {
         let fn_name = &fdef.data().1.data();
-        println!(".global {}", fn_name);
+        print_wrapper(&format!(".global {}", fn_name));
     }
 
     // TODO: vtable
@@ -233,6 +234,14 @@ fn class_env(cdefs: &Vec<ast::Node<ast::ClassDef>>) -> CEnv {
     cenv
 }
 
+fn print_wrapper(s: &str) {
+    if let None =  s.find(|c: char| c == '.' || c == ':') {
+        println!("    {}", s);
+    } else {
+        println!("{}", s);
+    }
+}
+
 pub fn compile(cfdefs: &(Vec<ast::Node<ast::ClassDef>>, Vec<ast::Node<ast::FunDef>>)) {
     let mut output = Output::default();
     let mut labels = HashSet::new();
@@ -251,19 +260,19 @@ pub fn compile(cfdefs: &(Vec<ast::Node<ast::ClassDef>>, Vec<ast::Node<ast::FunDe
     }
 
     for directive in output.directives {
-        println!("{}", directive);
+        print_wrapper(&directive);
     }
 
-    println!();
-    println!(".rodata");
+    print_wrapper("");
+    print_wrapper(".rodata");
     for rodata in output.rodata {
-        println!("{}", rodata);
+        print_wrapper(&rodata);
     }
 
-    println!();
-    println!(".text");
+    print_wrapper("");
+    print_wrapper(".text");
     for instruction in output.text {
-        println!("{}", instruction);
+        print_wrapper(&instruction);
     }
 }
 
@@ -311,7 +320,7 @@ fn compile_fn(
 
     compile_block(block_node.data(), &mut vstack, cenv, labels, output);
 
-    output.text.push(code_epilogue());
+    output.text.extend(code_epilogue());
 }
 
 fn compile_block(
@@ -360,14 +369,14 @@ fn compile_stmt(
         }
         ast::Stmt::VRet => {
             vstack_exit_fn(vstack, output);
-            output.text.push(code_epilogue());
+            output.text.extend(code_epilogue());
         }
         ast::Stmt::Ret(expr_node) => {
             compile_expr_val(expr_node, vstack, cenv, labels, output);
             pop_wrapper(REG_FN_RETVAL, vstack, output);
 
             vstack_exit_fn(vstack, output);
-            output.text.push(code_epilogue());
+            output.text.extend(code_epilogue());
         }
         ast::Stmt::Decl(prim_node, item_nodes) => {
             for item_node in item_nodes {
@@ -719,11 +728,45 @@ fn compile_expr_ptr(
             push_wrapper(REG_TMP, None, vstack, output);
         }
         ast::Expr::Null(_ident_node) => {
-            output.text.push(format!("{} {} {}", OP_MOV, REG_MAIN, 0));
+            output.text.push(format!("{} {}, {}", OP_MOV, REG_MAIN, 0));
             push_wrapper(REG_MAIN, None, vstack, output);
         }
-        ast::Expr::New(_ident_node) => unimplemented!(),
-        ast::Expr::Dot(_expr_node, _ident_node) => unimplemented!(),
+        ast::Expr::New(ident_node) => {
+            // TODO: inicjalizacja stringów na puste
+            // TODO: ustawienie vtable (argument do __new?)
+            let object_size = cenv.get(ident_node.data()).unwrap().0.len();
+            output
+                .text
+                .push(format!("{} {}, {}", OP_MOV, ARG_REGS[0], object_size));
+            output.text.push(format!("{} {}", OP_CALL, FN_NEW));
+            push_wrapper(REG_FN_RETVAL, None, vstack, output);
+        }
+        ast::Expr::Dot(expr_node, field_ident_node) => {
+            compile_expr_val(expr_node, vstack, cenv, labels, output);
+            pop_wrapper(REG_MAIN, vstack, output);
+
+            match expr_node.get_prim() {
+                ast::Prim::Class(class_name) => {
+                    let voffset = cenv
+                        .get(&class_name)
+                        .unwrap()
+                        .0
+                        .iter()
+                        .position(|vname| vname == field_ident_node.data())
+                        .unwrap();
+
+                    output
+                        .text
+                        .push(format!("{} {}, {}", OP_ADD, REG_MAIN, voffset));
+                    output.text.push(format!(
+                        "{} {}, {} ptr [{}]",
+                        OP_MOV, REG_AUX, MEM_WORD_SIZE, REG_MAIN
+                    ));
+                    push_wrapper(REG_AUX, None, vstack, output);
+                }
+                _ => panic!(),
+            }
+        }
         ast::Expr::Mthd(_expr_node, _ident_node, _arg_nodes) => unimplemented!(),
     }
 }
