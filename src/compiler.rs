@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
+use std::collections::HashMap;
 
 sa::assert_eq_size!(usize, i64, IntType);
 
@@ -61,6 +62,8 @@ static EMPTY_STRING_LABEL: &str = "__blank";
 static STACK_ARG_OFFSET: usize = 2 * VAR_SIZE;
 static VSTACK_VAR_OFFSET: usize = VAR_SIZE;
 
+static VTABLE_IDENT: &str = "__vtable";
+
 // TODO: VStack => Frame(Vec<ast::Ident>, VStack) [dodanie do kontekstu poprzedniej ramki]
 // TODO: deduplikacja stringów
 // TODO: sprawdzić, czy stos jest posprzątany (nie ma śmieci przy obliczaniu wyrażeń), żeby wołanie funkcji działało
@@ -68,6 +71,15 @@ static VSTACK_VAR_OFFSET: usize = VAR_SIZE;
 // TODO: funkcje obiektów w runtime (malloc, free, ...)
 // TODO: test kompilatora na większej wersji niedziałającego testu backendu
 // TODO: uwaga na zmienne z klasy w metodach
+// TODO: podebrać IEnv z typecheckera
+// TODO: upewnienie się, że obliczanie argumentów nie śmieci na stosie (lub sprzątać .tmp przy/przed obliczaniem)
+// TODO: dodawanie self do argumentów
+// TODO: czy chcemy vtable w structach?
+//       chyba tak, ale wtedy chyba warto mieć coś po vtable, żeby pusty vtable nie wskazywał na vtable innej klasy
+
+type VOffsets = Vec<ast::Ident>;
+type FOffsets = Vec<(ast::Ident, ast::Ident)>;
+type CEnv = HashMap<ast::Ident, (VOffsets, FOffsets)>;
 
 type VStack = (Vec<ast::Ident>, Vec<usize>);
 type Label = String;
@@ -77,6 +89,61 @@ struct Output {
     directives: Vec<String>,
     rodata: Vec<String>,
     text: Vec<String>,
+}
+
+fn register_class_in_env(
+    ident: &ast::Ident,
+    cenv: &mut CEnv,
+    cdefs: &HashMap<ast::Ident, ast::Node<ast::ClassDef>>,
+) {
+    let cdef = cdefs.get(ident).unwrap(); // unwrap, bo register_superclasses już sprawdziło
+    let (self_ident_node, parent_ident_node_option, field_nodes, method_nodes) = cdef.data();
+    let self_ident = self_ident_node.data();
+
+    if let Some(_) = cenv.get(self_ident) {
+        return;
+    }
+
+    let (mut voffsets, mut foffsets) = match parent_ident_node_option {
+        Some(parent_ident_node) => {
+            register_class_in_env(parent_ident_node.data(), cenv, cdefs);
+            cenv.get(parent_ident_node.data()).unwrap().clone()
+        }
+        None => (vec![VTABLE_IDENT.to_string()], vec![]),
+    };
+
+    for field_node in field_nodes {
+        let field_ident = field_node.data().1.data();
+
+        match voffsets.iter().position(|vname| vname == field_ident) {
+            Some(_) => (),
+            None => voffsets.push(field_ident.to_string()),
+        }
+    }
+
+    for method_node in method_nodes {
+        let method_ident = method_node.data().1.data();
+        let method_entry = (method_ident.to_string(), self_ident.to_string());
+
+        match foffsets.iter().position(|(mname, mimpl)| mname == method_ident) {
+            Some(idx) => foffsets[idx] = method_entry,
+            None => foffsets.push(method_entry),
+        }
+    }
+
+    cenv.insert(self_ident_node.data().to_string(), (voffsets, foffsets));
+}
+
+fn class_env(cdefs: &Vec<ast::Node<ast::ClassDef>>) -> CEnv {
+    let mut cenv: CEnv = HashMap::new();
+    let mut cdefs_map: HashMap<ast::Ident, ast::Node<ast::ClassDef>> = HashMap::new();
+    for cdef in cdefs {
+        cdefs_map.insert(cdef.data().0.data().clone(), cdef.clone());
+    }
+    for cdef in cdefs {
+        register_class_in_env(cdef.data().0.data(), &mut cenv, &cdefs_map);
+    }
+    cenv
 }
 
 fn error(msg: &str) -> ! {
@@ -314,14 +381,15 @@ fn compile_stmt(
             }
         }
         ast::Stmt::Asgn(ident_node, expr_node) => {
-            let offset = vstack_get_offset(vstack, ident_node.data());
+            unimplemented!()
+            // let offset = vstack_get_offset(vstack, ident_node.data());
 
-            compile_expr(expr_node, vstack, labels, output);
-            pop_wrapper(
-                &format!("{} ptr [{} - {}]", MEM_WORD_SIZE, REG_BASE, offset),
-                vstack,
-                output,
-            );
+            // compile_expr(expr_node, vstack, labels, output);
+            // pop_wrapper(
+            //     &format!("{} ptr [{} - {}]", MEM_WORD_SIZE, REG_BASE, offset),
+            //     vstack,
+            //     output,
+            // );
         }
         ast::Stmt::If(expr_node, stmt_node) => {
             let if_label_after = format!("if_{}_after", labels.len());
@@ -480,7 +548,8 @@ fn compile_expr(
             }
             push_wrapper(REG_FN_RETVAL, None, vstack, output);
         }
-        ast::Expr::Add(expr1, expr2) if expr.get_type() == ast::Type::Var(ast::Prim::Str) => {
+        // TODO: odkomentować i poprawić (pewnie matchem)
+        ast::Expr::Add(expr1, expr2) => { //if expr.get_type() == ast::Type::Var(ast::Prim::Str) => {
             compile_expr(&expr1, vstack, labels, output);
             compile_expr(&expr2, vstack, labels, output);
             pop_wrapper(ARG_REGS[1], vstack, output);
