@@ -6,6 +6,7 @@
 // TODO: sprawdzenie uwagi o castach w README
 // TODO: czy type_checker musi przekazywać rzeczy do kompilatora? (informacje o dziedziczeniu/klasach zmiennych)
 //       jeśli tak - pewnie by należało wydzielić moduł na to
+// TODO: wypełnienie typów nowych wyrażeń
 
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
@@ -48,11 +49,13 @@ fn cmp_types(expected: &ast::Type, actual: &ast::Type, ienv: &IEnv) -> bool {
         (ast::Type::Fun((exp_prim, exp_arg_prims)), ast::Type::Fun((act_prim, act_arg_prims))) => {
             cmp_prims(act_prim, exp_prim, ienv) && { // odwrotne porównanie - możemy zwrócić podklasę
                 if exp_arg_prims.len() == act_arg_prims.len() {
-                    let cmps: Vec<bool> = exp_arg_prims.iter().zip(act_arg_prims.iter()).map(
-                        |(exp_arg_prim, act_arg_prim)| {
+                    let cmps: Vec<bool> = exp_arg_prims
+                        .iter()
+                        .zip(act_arg_prims.iter())
+                        .map(|(exp_arg_prim, act_arg_prim)| {
                             return cmp_prims(exp_arg_prim, act_arg_prim, ienv);
-                        }
-                    ).collect();
+                        })
+                        .collect();
                     cmps.iter().all(|b| *b)
                 } else {
                     false
@@ -176,7 +179,11 @@ fn method_venv(
 
     let mut class_venv = VEnv::new();
     venv_enter_scope(&mut class_venv);
-    venv_insert(&mut class_venv, SELF_IDENT.to_string(), ast::Prim::Class(self_name_node.data().to_string()));
+    venv_insert(
+        &mut class_venv,
+        SELF_IDENT.to_string(),
+        ast::Prim::Class(self_name_node.data().to_string()),
+    );
     for (member_name, member) in members_map {
         if let ast::Type::Var(prim) = member {
             venv_insert(&mut class_venv, member_name.to_string(), prim.clone());
@@ -361,32 +368,34 @@ fn check_expr(
     lexer: &dyn Lexer<u32>,
 ) -> Result<ast::Prim, String> {
     let expr_type = match expr.data() {
-        ast::Expr::Dot(expr_node, ident_node) => match check_expr(expr_node, venv, cfienv, lexer)? {
-            ast::Prim::Class(class_name) => {
-                let members = match cfienv.0.get(&class_name) {
-                    None => return Err(no_such_msg(lexer, ident_node.span(), "class")),
-                    Some(members) => members,
-                };
-                match members.get(ident_node.data()) {
-                    None => return Err(no_such_msg(lexer, ident_node.span(), "field")),
-                    Some(ast::Type::Var(prim)) => prim.clone(),
-                    Some(ast::Type::Fun(_)) => {
-                        return Err(wrap_error_msg(
-                            lexer,
-                            expr_node.span(),
-                            "right side of . is a method",
-                        ))
+        ast::Expr::Dot(expr_node, ident_node) => {
+            match check_expr(expr_node, venv, cfienv, lexer)? {
+                ast::Prim::Class(class_name) => {
+                    let members = match cfienv.0.get(&class_name) {
+                        None => return Err(no_such_msg(lexer, ident_node.span(), "class")),
+                        Some(members) => members,
+                    };
+                    match members.get(ident_node.data()) {
+                        None => return Err(no_such_msg(lexer, ident_node.span(), "field")),
+                        Some(ast::Type::Var(prim)) => prim.clone(),
+                        Some(ast::Type::Fun(_)) => {
+                            return Err(wrap_error_msg(
+                                lexer,
+                                expr_node.span(),
+                                "right side of . is a method",
+                            ))
+                        }
                     }
                 }
+                non_class_prim => {
+                    return Err(wrap_error_msg(
+                        lexer,
+                        expr_node.span(),
+                        &format!("left side of . is a {:?}", non_class_prim),
+                    ))
+                }
             }
-            non_class_prim => {
-                return Err(wrap_error_msg(
-                    lexer,
-                    expr_node.span(),
-                    &format!("left side of . is a {:?}", non_class_prim),
-                ))
-            }
-        },
+        }
         ast::Expr::Mthd(expr_node, ident_node, arg_nodes) => {
             match check_expr(expr_node, venv, cfienv, lexer)? {
                 ast::Prim::Class(class_name) => {
@@ -406,7 +415,14 @@ fn check_expr(
                         Some(ast::Type::Fun(fun_type)) => {
                             let mut arg_nodes_with_self = arg_nodes.clone();
                             arg_nodes_with_self.insert(0, *(expr_node.clone())); // this
-                            check_call(fun_type, ident_node, &arg_nodes_with_self, venv, cfienv, lexer)?
+                            check_call(
+                                fun_type,
+                                ident_node,
+                                &arg_nodes_with_self,
+                                venv,
+                                cfienv,
+                                lexer,
+                            )?
                         }
                     }
                 }
@@ -570,7 +586,7 @@ fn check_expr(
             ast::Prim::Class(ident_node.data().clone())
         }
     };
-    expr.set_type(&ast::Type::Var(expr_type.clone()));
+    expr.set_prim(&expr_type);
     Ok(expr_type)
 }
 
@@ -676,7 +692,9 @@ fn check_stmt(
                                 }
                             };
                             match members_map.get(field_name) {
-                                Some(ast::Type::Var(field_prim)) if cmp_prims(field_prim, &expr_prim, &cfienv.2) => {
+                                Some(ast::Type::Var(field_prim))
+                                    if cmp_prims(field_prim, &expr_prim, &cfienv.2) =>
+                                {
                                     Ok(false)
                                 }
                                 Some(ast::Type::Var(field_prim)) => {
@@ -862,7 +880,7 @@ fn register_superclasses_in_env(
     };
 
     if let Some(_) = ienv.get(ident) {
-        return Ok(())
+        return Ok(());
     }
 
     let superclasses = match parent_ident_node_option {
@@ -923,10 +941,7 @@ fn register_class_in_env(
 
         let new_type = ast::Type::Fun((prim_node.data().clone(), arg_types));
 
-        if let Some(old_type) = members.insert(
-            ident_node.data().to_string(),
-            new_type.clone(),
-        ) {
+        if let Some(old_type) = members.insert(ident_node.data().to_string(), new_type.clone()) {
             if !cmp_types(&old_type, &new_type, ienv) {
                 return Err(wrap_error_msg(
                     lexer,

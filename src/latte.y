@@ -490,7 +490,7 @@ use std::option::Option;
 pub struct Node<N: Debug + Clone> {
     span: Span,
     data: N,
-    static_type: RefCell<Option<Type>>,
+    static_prim: RefCell<Option<Prim>>,
 }
 
 impl<N: Debug + Clone> Node<N> {
@@ -498,7 +498,7 @@ impl<N: Debug + Clone> Node<N> {
         Node{
           span,
           data,
-          static_type: RefCell::new(None),
+          static_prim: RefCell::new(None),
         }
     }
 
@@ -510,12 +510,12 @@ impl<N: Debug + Clone> Node<N> {
         &self.data
     }
 
-    pub fn set_type(&self, t: &Type) {
-        self.static_type.replace(Some(t.clone()));
+    pub fn set_prim(&self, t: &Prim) {
+        self.static_prim.replace(Some(t.clone()));
     }
 
-    pub fn get_type(&self) -> Type {
-        self.static_type.borrow().clone().unwrap()
+    pub fn get_prim(&self) -> Prim {
+        self.static_prim.borrow().clone().unwrap()
     }
 }
 
@@ -578,7 +578,7 @@ impl std::fmt::Display for Prim {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Prim {
     Int,
     Str,
