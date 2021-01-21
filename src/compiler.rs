@@ -546,10 +546,8 @@ fn compile_expr_ptr(
     labels: &mut Labels,
     output: &mut Output,
 ) {
-    eprintln!("{:?}", expr);
     match expr.data() {
         ast::Expr::Int(n) => {
-            eprintln!("int: {}", n);
             output.text.push(format!("{} {}, {}", OP_MOV, REG_MAIN, n));
             push_wrapper(REG_MAIN, None, vstack, output);
         }
