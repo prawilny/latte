@@ -91,61 +91,6 @@ struct Output {
     text: Vec<String>,
 }
 
-fn register_class_in_env(
-    ident: &ast::Ident,
-    cenv: &mut CEnv,
-    cdefs: &HashMap<ast::Ident, ast::Node<ast::ClassDef>>,
-) {
-    let cdef = cdefs.get(ident).unwrap(); // unwrap, bo register_superclasses już sprawdziło
-    let (self_ident_node, parent_ident_node_option, field_nodes, method_nodes) = cdef.data();
-    let self_ident = self_ident_node.data();
-
-    if let Some(_) = cenv.get(self_ident) {
-        return;
-    }
-
-    let (mut voffsets, mut foffsets) = match parent_ident_node_option {
-        Some(parent_ident_node) => {
-            register_class_in_env(parent_ident_node.data(), cenv, cdefs);
-            cenv.get(parent_ident_node.data()).unwrap().clone()
-        }
-        None => (vec![VTABLE_IDENT.to_string()], vec![]),
-    };
-
-    for field_node in field_nodes {
-        let field_ident = field_node.data().1.data();
-
-        match voffsets.iter().position(|vname| vname == field_ident) {
-            Some(_) => (),
-            None => voffsets.push(field_ident.to_string()),
-        }
-    }
-
-    for method_node in method_nodes {
-        let method_ident = method_node.data().1.data();
-        let method_entry = (method_ident.to_string(), self_ident.to_string());
-
-        match foffsets.iter().position(|(mname, mimpl)| mname == method_ident) {
-            Some(idx) => foffsets[idx] = method_entry,
-            None => foffsets.push(method_entry),
-        }
-    }
-
-    cenv.insert(self_ident_node.data().to_string(), (voffsets, foffsets));
-}
-
-fn class_env(cdefs: &Vec<ast::Node<ast::ClassDef>>) -> CEnv {
-    let mut cenv: CEnv = HashMap::new();
-    let mut cdefs_map: HashMap<ast::Ident, ast::Node<ast::ClassDef>> = HashMap::new();
-    for cdef in cdefs {
-        cdefs_map.insert(cdef.data().0.data().clone(), cdef.clone());
-    }
-    for cdef in cdefs {
-        register_class_in_env(cdef.data().0.data(), &mut cenv, &cdefs_map);
-    }
-    cenv
-}
-
 fn error(msg: &str) -> ! {
     eprintln!("ERROR");
     eprintln!("type checker didn't catch error: {}", msg);
@@ -226,9 +171,66 @@ fn directives(fdefs: &Vec<ast::Node<ast::FunDef>>, output: &mut Output) {
     }
 }
 
+fn register_class_in_env(
+    ident: &ast::Ident,
+    cenv: &mut CEnv,
+    cdefs: &HashMap<ast::Ident, ast::Node<ast::ClassDef>>,
+) {
+    let cdef = cdefs.get(ident).unwrap(); // unwrap, bo register_superclasses już sprawdziło
+    let (self_ident_node, parent_ident_node_option, field_nodes, method_nodes) = cdef.data();
+    let self_ident = self_ident_node.data();
+
+    if let Some(_) = cenv.get(self_ident) {
+        return;
+    }
+
+    let (mut voffsets, mut foffsets) = match parent_ident_node_option {
+        Some(parent_ident_node) => {
+            register_class_in_env(parent_ident_node.data(), cenv, cdefs);
+            cenv.get(parent_ident_node.data()).unwrap().clone()
+        }
+        None => (vec![VTABLE_IDENT.to_string()], vec![]),
+    };
+
+    for field_node in field_nodes {
+        let field_ident = field_node.data().1.data();
+
+        match voffsets.iter().position(|vname| vname == field_ident) {
+            Some(_) => (),
+            None => voffsets.push(field_ident.to_string()),
+        }
+    }
+
+    for method_node in method_nodes {
+        let method_ident = method_node.data().1.data();
+        let method_entry = (method_ident.to_string(), self_ident.to_string());
+
+        match foffsets.iter().position(|(mname, mimpl)| mname == method_ident) {
+            Some(idx) => foffsets[idx] = method_entry,
+            None => foffsets.push(method_entry),
+        }
+    }
+
+    cenv.insert(self_ident_node.data().to_string(), (voffsets, foffsets));
+}
+
+fn class_env(cdefs: &Vec<ast::Node<ast::ClassDef>>) -> CEnv {
+    let mut cenv: CEnv = HashMap::new();
+    let mut cdefs_map: HashMap<ast::Ident, ast::Node<ast::ClassDef>> = HashMap::new();
+    for cdef in cdefs {
+        cdefs_map.insert(cdef.data().0.data().clone(), cdef.clone());
+    }
+    for cdef in cdefs {
+        register_class_in_env(cdef.data().0.data(), &mut cenv, &cdefs_map);
+    }
+    cenv
+}
+
 pub fn compile(cfdefs: &(Vec<ast::Node<ast::ClassDef>>, Vec<ast::Node<ast::FunDef>>)) {
     let mut output = Output::default();
     let mut labels = HashSet::new();
+
+    let cenv = class_env(&cfdefs.0);
 
     directives(&cfdefs.1, &mut output);
 
@@ -238,7 +240,7 @@ pub fn compile(cfdefs: &(Vec<ast::Node<ast::ClassDef>>, Vec<ast::Node<ast::FunDe
         .push(format!("{}: .asciz \"\"", EMPTY_STRING_LABEL));
 
     for fdef in &cfdefs.1 {
-        compile_fn(fdef, &mut labels, &mut output);
+        compile_fn(fdef, &cenv, &mut labels, &mut output);
     }
 
     for directive in output.directives {
@@ -258,7 +260,7 @@ pub fn compile(cfdefs: &(Vec<ast::Node<ast::ClassDef>>, Vec<ast::Node<ast::FunDe
     }
 }
 
-fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output: &mut Output) {
+fn compile_fn(fdef: &ast::Node<ast::FunDef>, cenv: &CEnv, labels: &mut HashSet<Label>, output: &mut Output) {
     let mut vstack: VStack = (vec![], vec![0]);
 
     let (_, ident_node, arg_nodes, block_node) = fdef.data();
@@ -295,7 +297,7 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
         );
     }
 
-    compile_block(block_node.data(), &mut vstack, labels, output);
+    compile_block(block_node.data(), &mut vstack, cenv, labels, output);
 
     output.text.push(code_epilogue());
 }
@@ -303,13 +305,14 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, labels: &mut HashSet<Label>, output
 fn compile_block(
     stmts: &Vec<ast::Node<ast::Stmt>>,
     vstack: &mut VStack,
+    cenv: &CEnv,
     labels: &mut HashSet<Label>,
     output: &mut Output,
 ) {
     vstack_enter_scope(vstack);
 
     for stmt in stmts {
-        compile_stmt(stmt, vstack, labels, output);
+        compile_stmt(stmt, vstack, cenv, labels, output);
     }
 
     vstack_exit_scope(vstack, output);
@@ -318,16 +321,17 @@ fn compile_block(
 fn compile_stmt(
     stmt: &ast::Node<ast::Stmt>,
     vstack: &mut VStack,
+    cenv: &CEnv,
     labels: &mut HashSet<Label>,
     output: &mut Output,
 ) {
     match stmt.data() {
         ast::Stmt::Empty => (),
         ast::Stmt::Expr(expr_node) => {
-            compile_expr(expr_node, vstack, labels, output);
+            compile_expr(expr_node, vstack, cenv, labels, output);
             vstack_shrink_stack(vstack, output);
         }
-        ast::Stmt::Block(block_node) => compile_block(block_node.data(), vstack, labels, output),
+        ast::Stmt::Block(block_node) => compile_block(block_node.data(), vstack, cenv, labels, output),
         ast::Stmt::Incr(ident_node) | ast::Stmt::Decr(ident_node) => {
             let offset = vstack_get_offset(vstack, ident_node.data());
             let op_code = match stmt.data() {
@@ -345,7 +349,7 @@ fn compile_stmt(
             output.text.push(code_epilogue());
         }
         ast::Stmt::Ret(expr_node) => {
-            compile_expr(expr_node, vstack, labels, output);
+            compile_expr(expr_node, vstack, cenv, labels, output);
             pop_wrapper(REG_FN_RETVAL, vstack, output);
 
             vstack_exit_fn(vstack, output);
@@ -374,34 +378,42 @@ fn compile_stmt(
                         push_wrapper(REG_MAIN, Some(&ident_node.data().clone()), vstack, output);
                     }
                     ast::Item::Init(ident_node, expr_node) => {
-                        compile_expr(expr_node, vstack, labels, output);
+                        compile_expr(expr_node, vstack, cenv, labels, output);
                         vstack_rename_top(vstack, ident_node.data().clone());
                     }
                 };
             }
         }
-        ast::Stmt::Asgn(ident_node, expr_node) => {
-            unimplemented!()
-            // let offset = vstack_get_offset(vstack, ident_node.data());
+        ast::Stmt::Asgn(lhs_expr_node, rhs_expr_node) => {
+            match lhs_expr_node.data() {
+                // TODO: czy dobrze działa dla wyników zmiennymi będacych?
+                ast::Expr::Var(ident_node) => {
+                    let offset = vstack_get_offset(vstack, ident_node.data());
 
-            // compile_expr(expr_node, vstack, labels, output);
-            // pop_wrapper(
-            //     &format!("{} ptr [{} - {}]", MEM_WORD_SIZE, REG_BASE, offset),
-            //     vstack,
-            //     output,
-            // );
+                    compile_expr(rhs_expr_node, vstack, cenv, labels, output);
+                    pop_wrapper(
+                        &format!("{} ptr [{} - {}]", MEM_WORD_SIZE, REG_BASE, offset),
+                        vstack,
+                        output,
+                    );
+                }
+                ast::Expr::Dot(dot_expr, dot_ident) => {
+
+                }
+                _ => unreachable!(),
+            }
         }
         ast::Stmt::If(expr_node, stmt_node) => {
             let if_label_after = format!("if_{}_after", labels.len());
             labels.insert(if_label_after.clone());
 
-            compile_expr(expr_node, vstack, labels, output);
+            compile_expr(expr_node, vstack, cenv, labels, output);
             pop_wrapper(REG_MAIN, vstack, output);
             output
                 .text
                 .push(format!("{} {}, {}", OP_CMP, REG_MAIN, VAL_FALSE));
             output.text.push(format!("{} {}", JMP_EQ, if_label_after));
-            compile_block(&vec![*stmt_node.clone()], vstack, labels, output);
+            compile_block(&vec![*stmt_node.clone()], vstack, cenv, labels, output);
             output.text.push(format!("{}:", if_label_after));
         }
         ast::Stmt::IfElse(expr_node, true_stmt_node, false_stmt_node) => {
@@ -414,7 +426,7 @@ fn compile_stmt(
                 cond_label_false.clone(),
             ]);
 
-            compile_expr(expr_node, vstack, labels, output);
+            compile_expr(expr_node, vstack, cenv, labels, output);
             pop_wrapper(REG_MAIN, vstack, output);
             output
                 .text
@@ -425,13 +437,13 @@ fn compile_stmt(
                 .push(format!("{} {}", JMP_ALWAYS, cond_label_true));
 
             output.text.push(format!("{}:", &cond_label_true));
-            compile_block(&vec![*true_stmt_node.clone()], vstack, labels, output);
+            compile_block(&vec![*true_stmt_node.clone()], vstack, cenv, labels, output);
             output
                 .text
                 .push(format!("{} {}", JMP_ALWAYS, cond_label_after));
 
             output.text.push(format!("{}:", &cond_label_false));
-            compile_block(&vec![*false_stmt_node.clone()], vstack, labels, output);
+            compile_block(&vec![*false_stmt_node.clone()], vstack, cenv, labels, output);
             output
                 .text
                 .push(format!("{} {}", JMP_ALWAYS, cond_label_after));
@@ -444,7 +456,7 @@ fn compile_stmt(
             labels.extend(vec![while_label_cond.clone(), while_label_after.clone()]);
 
             output.text.push(format!("{}:", &while_label_cond));
-            compile_expr(expr_node, vstack, labels, output);
+            compile_expr(expr_node, vstack, cenv, labels, output);
             pop_wrapper(REG_MAIN, vstack, output);
             output
                 .text
@@ -453,7 +465,7 @@ fn compile_stmt(
                 .text
                 .push(format!("{} {}", JMP_EQ, while_label_after));
 
-            compile_block(&vec![*stmt_node.clone()], vstack, labels, output);
+            compile_block(&vec![*stmt_node.clone()], vstack, cenv, labels, output);
             output
                 .text
                 .push(format!("{} {}", JMP_ALWAYS, while_label_cond));
@@ -466,6 +478,7 @@ fn compile_stmt(
 fn compile_expr(
     expr: &ast::Node<ast::Expr>,
     vstack: &mut VStack,
+    cenv: &CEnv,
     labels: &mut HashSet<Label>,
     output: &mut Output,
 ) {
@@ -502,13 +515,13 @@ fn compile_expr(
             push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::Neg(expr_node) => {
-            compile_expr(expr_node, vstack, labels, output);
+            compile_expr(expr_node, vstack, cenv, labels, output);
             pop_wrapper(REG_MAIN, vstack, output);
             output.text.push(format!("{} {}", OP_NEGATION, REG_MAIN));
             push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::Not(expr_node) => {
-            compile_expr(expr_node, vstack, labels, output);
+            compile_expr(expr_node, vstack, cenv, labels, output);
             pop_wrapper(REG_AUX, vstack, output);
             output
                 .text
@@ -532,7 +545,7 @@ fn compile_expr(
             // TODO: nadpisywany rejestr jeśli przy obliczaniu wartości wyrażenia wywołujemy funkcję
             // TODO: policzyć wszystkie argumenty, a potem dopiero robić pop()
             for i in (0..args_count).rev() {
-                compile_expr(&arg_expr_nodes[i], vstack, labels, output);
+                compile_expr(&arg_expr_nodes[i], vstack, cenv, labels, output);
             }
             for i in 0..std::cmp::min(ARG_REGS.len(), args_count) {
                 pop_wrapper(ARG_REGS[i], vstack, output);
@@ -550,8 +563,8 @@ fn compile_expr(
         }
         // TODO: odkomentować i poprawić (pewnie matchem)
         ast::Expr::Add(expr1, expr2) => { //if expr.get_type() == ast::Type::Var(ast::Prim::Str) => {
-            compile_expr(&expr1, vstack, labels, output);
-            compile_expr(&expr2, vstack, labels, output);
+            compile_expr(&expr1, vstack, cenv, labels, output);
+            compile_expr(&expr2, vstack, cenv, labels, output);
             pop_wrapper(ARG_REGS[1], vstack, output);
             pop_wrapper(ARG_REGS[0], vstack, output);
 
@@ -562,8 +575,8 @@ fn compile_expr(
         ast::Expr::Add(expr1, expr2)
         | ast::Expr::Sub(expr1, expr2)
         | ast::Expr::Mul(expr1, expr2) => {
-            compile_expr(&expr1, vstack, labels, output);
-            compile_expr(&expr2, vstack, labels, output);
+            compile_expr(&expr1, vstack, cenv, labels, output);
+            compile_expr(&expr2, vstack, cenv, labels, output);
             pop_wrapper(REG_AUX, vstack, output);
             pop_wrapper(REG_MAIN, vstack, output);
 
@@ -580,8 +593,8 @@ fn compile_expr(
             push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::Div(expr1, expr2) | ast::Expr::Mod(expr1, expr2) => {
-            compile_expr(&expr1, vstack, labels, output);
-            compile_expr(&expr2, vstack, labels, output);
+            compile_expr(&expr1, vstack, cenv, labels, output);
+            compile_expr(&expr2, vstack, cenv, labels, output);
             pop_wrapper(REG_AUX, vstack, output);
             pop_wrapper(REG_DIVIDEND, vstack, output);
 
@@ -605,7 +618,7 @@ fn compile_expr(
             let or_and_label_after = format!("or_and_{}_after", labels.len());
             labels.insert(or_and_label_after.clone());
 
-            compile_expr(&expr1, vstack, labels, output);
+            compile_expr(&expr1, vstack, cenv, labels, output);
             output.text.push(format!(
                 "{} {}, {} ptr [{}]",
                 OP_MOV, REG_MAIN, MEM_WORD_SIZE, REG_STACK
@@ -619,7 +632,7 @@ fn compile_expr(
                 .push(format!("{} {}", JMP_EQ, or_and_label_after));
 
             vstack_shrink_stack(vstack, output);
-            compile_expr(&expr2, vstack, labels, output);
+            compile_expr(&expr2, vstack, cenv, labels, output);
             output.text.push(format!("{}:", or_and_label_after));
         }
         ast::Expr::EQ(expr1, expr2)
@@ -628,8 +641,8 @@ fn compile_expr(
         | ast::Expr::LEQ(expr1, expr2)
         | ast::Expr::GTH(expr1, expr2)
         | ast::Expr::GEQ(expr1, expr2) => {
-            compile_expr(&expr1, vstack, labels, output);
-            compile_expr(&expr2, vstack, labels, output);
+            compile_expr(&expr1, vstack, cenv, labels, output);
+            compile_expr(&expr2, vstack, cenv, labels, output);
             pop_wrapper(REG_AUX, vstack, output);
             pop_wrapper(REG_MAIN, vstack, output);
             output
