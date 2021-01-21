@@ -4,6 +4,8 @@ use crate::latte_y as ast;
 use crate::latte_y::IntType;
 use std::collections::HashMap;
 
+use ast::SELF_IDENT;
+
 sa::assert_eq_size!(usize, i64, IntType);
 
 static MEM_WORD_SIZE: &str = "qword";
@@ -70,7 +72,7 @@ static VTABLE_IDENT: &str = "__vtable";
 // TODO: sprawdzić, czy stos jest posprzątany (nie ma śmieci przy obliczaniu wyrażeń), żeby wołanie funkcji działało
 // TODO: sprawdzić "_", unimplemented!, unreachable!
 // TODO: funkcje obiektów w runtime (malloc, free, ...)
-// TODO: test kompilatora na większej wersji niedziałającego testu backendu
+// TODO: test kompilatora na większej wersji niedziałającego testu backendu (ten z nadpisywaniem rejestrów, w których przekazywane są argumenty)
 // TODO: uwaga na zmienne z klasy w metodach
 // TODO: podebrać IEnv z typecheckera
 // TODO: upewnienie się, że obliczanie argumentów nie śmieci na stosie (lub sprzątać .tmp przy/przed obliczaniem)
@@ -78,7 +80,8 @@ static VTABLE_IDENT: &str = "__vtable";
 // TODO: czy chcemy vtable w structach?
 //       chyba tak, ale wtedy chyba warto mieć coś po vtable, żeby pusty vtable nie wskazywał na vtable innej klasy
 // TODO: sprawdzić, czy gdzieś wstawienie obiektu nie psuje
-// TODO: problem z przedeklarowaniem zmiennej klasy wewnątrz metody, bo
+// TODO: problem z przedeklarowaniem zmiennej klasy wewnątrz metody
+//       rozwiązanie: vstack_variable_present => bool (korzystamy z tego przy wyciąganiu )
 
 type VOffsets = Vec<ast::Ident>;
 type FOffsets = Vec<(ast::Ident, ast::Ident)>;
@@ -86,6 +89,7 @@ type CEnv = HashMap<ast::Ident, (VOffsets, FOffsets)>;
 
 type VStack = (Vec<ast::Ident>, Vec<usize>);
 type Label = String;
+type Labels = HashSet<Label>;
 
 #[derive(Default)]
 struct Output {
@@ -200,9 +204,8 @@ fn register_class_in_env(
     for field_node in field_nodes {
         let field_ident = field_node.data().1.data();
 
-        match voffsets.iter().position(|vname| vname == field_ident) {
-            Some(_) => (),
-            None => voffsets.push(field_ident.to_string()),
+        if let None = voffsets.iter().position(|vname| vname == field_ident) {
+            voffsets.push(field_ident.to_string());
         }
     }
 
@@ -279,7 +282,7 @@ pub fn compile(cfdefs: &(Vec<ast::Node<ast::ClassDef>>, Vec<ast::Node<ast::FunDe
 fn compile_fn(
     fdef: &ast::Node<ast::FunDef>,
     cenv: &CEnv,
-    labels: &mut HashSet<Label>,
+    labels: &mut Labels,
     output: &mut Output,
 ) {
     let mut vstack: VStack = (vec![], vec![0]);
@@ -327,7 +330,7 @@ fn compile_block(
     stmts: &Vec<ast::Node<ast::Stmt>>,
     vstack: &mut VStack,
     cenv: &CEnv,
-    labels: &mut HashSet<Label>,
+    labels: &mut Labels,
     output: &mut Output,
 ) {
     vstack_enter_scope(vstack);
@@ -343,7 +346,7 @@ fn compile_stmt(
     stmt: &ast::Node<ast::Stmt>,
     vstack: &mut VStack,
     cenv: &CEnv,
-    labels: &mut HashSet<Label>,
+    labels: &mut Labels,
     output: &mut Output,
 ) {
     match stmt.data() {
@@ -516,7 +519,7 @@ fn compile_expr_val(
     expr: &ast::Node<ast::Expr>,
     vstack: &mut VStack,
     cenv: &CEnv,
-    labels: &mut HashSet<Label>,
+    labels: &mut Labels,
     output: &mut Output,
 ) {
     compile_expr_ptr(expr, vstack, cenv, labels, output);
@@ -540,11 +543,13 @@ fn compile_expr_ptr(
     expr: &ast::Node<ast::Expr>,
     vstack: &mut VStack,
     cenv: &CEnv,
-    labels: &mut HashSet<Label>,
+    labels: &mut Labels,
     output: &mut Output,
 ) {
+    eprintln!("{:?}", expr);
     match expr.data() {
         ast::Expr::Int(n) => {
+            eprintln!("int: {}", n);
             output.text.push(format!("{} {}, {}", OP_MOV, REG_MAIN, n));
             push_wrapper(REG_MAIN, None, vstack, output);
         }
@@ -734,18 +739,18 @@ fn compile_expr_ptr(
         ast::Expr::New(ident_node) => {
             // TODO: inicjalizacja stringów na puste
             // TODO: ustawienie vtable (argument do __new?)
-            let object_size = cenv.get(ident_node.data()).unwrap().0.len();
+            let object_size = cenv.get(ident_node.data()).unwrap().0.len() * VAR_SIZE;
             output
                 .text
                 .push(format!("{} {}, {}", OP_MOV, ARG_REGS[0], object_size));
             output.text.push(format!("{} {}", OP_CALL, FN_NEW));
             push_wrapper(REG_FN_RETVAL, None, vstack, output);
         }
-        ast::Expr::Dot(expr_node, field_ident_node) => {
-            compile_expr_val(expr_node, vstack, cenv, labels, output);
+        ast::Expr::Dot(lhs_node, field_ident_node) => {
+            compile_expr_val(lhs_node, vstack, cenv, labels, output);
             pop_wrapper(REG_MAIN, vstack, output);
 
-            match expr_node.get_prim() {
+            match lhs_node.get_prim() {
                 ast::Prim::Class(class_name) => {
                     let voffset = cenv
                         .get(&class_name)
@@ -753,7 +758,7 @@ fn compile_expr_ptr(
                         .0
                         .iter()
                         .position(|vname| vname == field_ident_node.data())
-                        .unwrap();
+                        .unwrap() * VAR_SIZE;
 
                     output
                         .text
