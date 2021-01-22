@@ -51,6 +51,7 @@ fn cmp_types(expected: &ast::Type, actual: &ast::Type, ienv: &IEnv) -> bool {
                 // odwrotne porównanie - możemy zwrócić podklasę
                 if exp_arg_prims.len() == act_arg_prims.len() {
                     let cmps: Vec<bool> = exp_arg_prims
+                        [1..] // obcinamy self
                         .iter()
                         .zip(act_arg_prims.iter())
                         .map(|(exp_arg_prim, act_arg_prim)| {
@@ -548,17 +549,16 @@ fn check_stmt(
                 if let Some(_) = venv_get_in_scope(venv, &var_name) {
                     return Err(wrap_error_msg(lexer, item_node.span(), "variable redeclared within block"));
                 }
-                venv_insert(venv, var_name, var_prim);
+                venv_insert(venv, var_name, decl_prim.clone());
             }
             Ok(false)
         }
         ast::Stmt::Asgn(lhs_node, expr_node) => {
             let expr_prim = check_expr(&expr_node, &mut venv, cfienv, lexer)?;
-            let lhs_prim = check_expr(lhs_node, venv, cfienv, lexer)?;
-            lhs_node.set_prim(&lhs_prim);
             match lhs_node.data() {
-                ast::Expr::Var(ident_node) => match venv_insert(venv, ident_node.data().clone(), expr_prim.clone()) {
+                ast::Expr::Var(ident_node) => match venv_get(venv, ident_node.data()) {
                     Some(var_prim) => {
+                        lhs_node.set_prim(&var_prim);
                         if cmp_prims(&var_prim, &expr_prim, &cfienv.2) {
                             Ok(false)
                         } else {
@@ -567,8 +567,8 @@ fn check_stmt(
                     }
                     None => Err(undeclared_var_msg(lexer, ident_node.span())),
                 },
-                ast::Expr::Dot(dot_lhs_node, dot_rhs_node) => {
-                    let field_name = dot_rhs_node.data();
+                ast::Expr::Dot(dot_lhs_node, field_name_node) => {
+                    let field_name = field_name_node.data();
                     match check_expr(dot_lhs_node, venv, cfienv, lexer)? {
                         ast::Prim::Class(class_name) => {
                             let members_map = match cfienv.0.get(&class_name) {
@@ -578,7 +578,10 @@ fn check_stmt(
                                 }
                             };
                             match members_map.get(field_name) {
-                                Some(ast::Type::Var(field_prim)) if cmp_prims(field_prim, &expr_prim, &cfienv.2) => Ok(false),
+                                Some(ast::Type::Var(field_prim)) if cmp_prims(field_prim, &expr_prim, &cfienv.2) => {
+                                    lhs_node.set_prim(field_prim);
+                                    Ok(false)
+                                }
                                 Some(ast::Type::Var(field_prim)) => {
                                     return Err(type_mismatch_msg(field_prim.clone(), &expr_prim, lexer, expr_node.span()));
                                 }
