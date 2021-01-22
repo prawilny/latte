@@ -211,12 +211,12 @@ fn rodata_constants(cenv: &CEnv) -> Vec<String> {
         constants.push(format!("{}:", vtable_label(class_name)));
         for (method_name, implementing_class) in class_methods {
             constants.push(format!(
-                "{} {}",
+                "    {} {}",
                 ASM_ADDR_SIZE_DIR,
                 fn_label(Some(implementing_class.to_string()), method_name)
             ));
         }
-        constants.push(format!("{} 0", ASM_ADDR_SIZE_DIR));
+        constants.push(format!("    {} 0", ASM_ADDR_SIZE_DIR));
     }
     constants
 }
@@ -293,7 +293,11 @@ pub fn compile(cfdefs: &(Vec<ast::Node<ast::ClassDef>>, Vec<ast::Node<ast::FunDe
     }
 
     for cdef in &cfdefs.0 {
+        let (class_name_node, _, _, class_methods) = cdef.data();
 
+        for fdef in class_methods {
+            compile_fn(fdef, &cenv, &mut labels, &mut output, &Some(class_name_node.data().to_string()));
+        }
     }
 
     for directive in output.directives {
@@ -324,8 +328,11 @@ fn compile_fn(
 
     let (_, ident_node, arg_nodes, block_node) = fdef.data();
     let mut arg_names: Vec<ast::Ident> = arg_nodes.iter().map(|arg_node| arg_node.data().1.data().clone()).collect();
-    if let Some(_) = class_name_option {
+    if let Some(class_name) = class_name_option {
         arg_names.insert(0, SELF_IDENT.to_string()); // this
+        output.text.push(format!("{}:", fn_label(Some(class_name.to_string()), ident_node.data())));
+    } else {
+        output.text.push(format!("{}:", fn_label(None, ident_node.data())));
     }
 
     let stack_args_count = if arg_names.len() > ARG_REGS.len() {
@@ -334,7 +341,6 @@ fn compile_fn(
         0
     };
 
-    output.text.push(format!("{}:", fn_label(None, ident_node.data())));
     output.text.push(format!("{} {}", OP_PUSH, REG_BASE));
     output.text.push(format!("{} {}, {}", OP_MOV, REG_BASE, REG_STACK));
 
@@ -351,6 +357,9 @@ fn compile_fn(
     }
 
     compile_block(block_node.data(), &mut vstack, cenv, labels, output, class_name_option);
+
+    // TODO: czy to czyszczenie stosu jest potrzebne?
+    vstack_shrink_stack(&mut vstack, std::cmp::min(ARG_REGS.len(), arg_names.len()), output);
 
     output.text.extend(code_epilogue());
 }
@@ -756,8 +765,9 @@ fn compile_expr_ptr(
                 let method_offset = cenv_get_method_offset(cenv, &class_name, method_ident_node.data());
                 output
                     .text
-                    .push(format!("{} {}, {} ptr [{}]", OP_MOV, REG_MAIN, MEM_WORD_SIZE, ARG_REGS[0]));
-                output.text.push(format!("{} {}, {}", OP_ADD, REG_MAIN, method_offset));
+                    .push(format!("{} {}, {} ptr [{}]", OP_MOV, REG_AUX, MEM_WORD_SIZE, ARG_REGS[0]));
+                output.text.push(format!("{} {}, {}", OP_ADD, REG_AUX, method_offset));
+                output.text.push(format!("{} {}, {} ptr [{}]", OP_MOV, REG_MAIN, MEM_WORD_SIZE, REG_AUX));
                 output.text.push(format!("{} {}", OP_CALL, REG_MAIN));
 
                 if stack_args_count > 0 {
