@@ -3,7 +3,10 @@
 #include <string.h>
 
 #define string char *
+#define i64 long
 #define BUF_SIZE 256
+
+_Static_assert(sizeof(i64) == 8, "");
 
 static char buf[BUF_SIZE];
 
@@ -12,7 +15,7 @@ void error() {
     exit(1);
 }
 
-void printInt(const long i) {
+void printInt(const i64 i) {
     printf("%ld\n", i);
 }
 
@@ -20,7 +23,7 @@ void printString(const string s) {
     printf("%s\n", s);
 }
 
-long readInt() {
+i64 readInt() {
     fgets(buf, BUF_SIZE - 1, stdin);
     return strtol(buf, NULL, 0);
 }
@@ -51,8 +54,9 @@ string __strcat(const string s1, const string s2) {
     return str;
 }
 
-void * __new(const long bytes) {
+void * __new(const i64 bytes, const void * vtable) {
     void * ptr = malloc(bytes);
     memset(ptr, 0, bytes);
+    *((i64 *) ptr) = (i64) vtable;
     return ptr;
 }
