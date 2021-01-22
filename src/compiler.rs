@@ -67,14 +67,12 @@ static VSTACK_VAR_OFFSET: usize = VAR_SIZE;
 
 static VTABLE_IDENT: &str = "__vtable";
 
-// TODO: VStack => Frame(Vec<ast::Ident>, VStack) [dodanie do kontekstu poprzedniej ramki]
 // TODO: deduplikacja stringów
 // TODO: sprawdzić, czy stos jest posprzątany (nie ma śmieci przy obliczaniu wyrażeń), żeby wołanie funkcji działało
 // TODO: sprawdzić "_", unimplemented!, unreachable!
 // TODO: funkcje obiektów w runtime (malloc, free, ...)
 // TODO: test kompilatora na większej wersji niedziałającego testu backendu (ten z nadpisywaniem rejestrów, w których przekazywane są argumenty)
 // TODO: uwaga na zmienne z klasy w metodach
-// TODO: podebrać IEnv z typecheckera
 // TODO: upewnienie się, że obliczanie argumentów nie śmieci na stosie (lub sprzątać .tmp przy/przed obliczaniem)
 // TODO: dodawanie self do argumentów
 // TODO: czy chcemy vtable w structach?
@@ -82,7 +80,8 @@ static VTABLE_IDENT: &str = "__vtable";
 // TODO: sprawdzić, czy gdzieś wstawienie obiektu nie psuje
 // TODO: problem z przedeklarowaniem zmiennej klasy wewnątrz metody
 //       rozwiązanie: vstack_variable_present => bool (korzystamy z tego przy wyciąganiu )
-// TODO: wykasować error() i błędy - łapać panic! w main()
+// TODO: choćby i jednoużyciowe wrappery na {v,f}members_get_offset?
+// TODO: README: wszystkie metody są wirtualne
 
 type VOffsets = Vec<ast::Ident>;
 type FOffsets = Vec<(ast::Ident, ast::Ident)>;
@@ -365,13 +364,7 @@ fn compile_stmt(stmt: &ast::Node<ast::Stmt>, vstack: &mut VStack, cenv: &CEnv, l
             compile_expr_val(rhs_expr_node, vstack, cenv, labels, output);
 
             match lhs_expr_node.data() {
-                ast::Expr::Var(ident_node) => {
-                    let offset = vstack_get_offset(vstack, ident_node.data());
-                    output.text.push(format!("{} {}, {}", OP_MOV, REG_MAIN, REG_BASE));
-                    output.text.push(format!("{} {}, {}", OP_SUB, REG_MAIN, offset));
-                    push_wrapper(REG_MAIN, None, vstack, output);
-                }
-                ast::Expr::Dot(_, _) => {
+                ast::Expr::Var(_) | ast::Expr::Dot(_, _) => {
                     compile_expr_ptr(lhs_expr_node, vstack, cenv, labels, output);
                 }
                 _ => unreachable!(),
@@ -487,7 +480,7 @@ fn compile_expr_ptr(expr: &ast::Node<ast::Expr>, vstack: &mut VStack, cenv: &CEn
                 output.text.push(format!("{} {}, {}", OP_MOV, REG_MAIN, REG_BASE));
                 output.text.push(format!("{} {}, {}", OP_SUB, REG_MAIN, self_offset));
                 output.text.push(format!("{} {}, {}", OP_ADD, REG_MAIN, field_offset));
-                push_wrapper(&format!("{} ptr [{}]", MEM_WORD_SIZE, REG_MAIN), None, vstack, output);
+                push_wrapper(REG_MAIN, None, vstack, output);
             }
         }
         ast::Expr::Neg(expr_node) => {
@@ -526,7 +519,6 @@ fn compile_expr_ptr(expr: &ast::Node<ast::Expr>, vstack: &mut VStack, cenv: &CEn
             }
             push_wrapper(REG_FN_RETVAL, None, vstack, output);
         }
-        // TODO: odkomentować i poprawić (pewnie matchem)
         ast::Expr::Add(expr1, expr2) if expr1.get_prim() == ast::Prim::Str => {
             compile_expr_val(&expr1, vstack, cenv, labels, output);
             compile_expr_val(&expr2, vstack, cenv, labels, output);
@@ -580,6 +572,7 @@ fn compile_expr_ptr(expr: &ast::Node<ast::Expr>, vstack: &mut VStack, cenv: &CEn
             labels.insert(or_and_label_after.clone());
 
             compile_expr_val(&expr1, vstack, cenv, labels, output);
+            // TODO: dlaczego nie pop_wrapper() ?
             output
                 .text
                 .push(format!("{} {}, {} ptr [{}]", OP_MOV, REG_MAIN, MEM_WORD_SIZE, REG_STACK));
@@ -644,18 +637,9 @@ fn compile_expr_ptr(expr: &ast::Node<ast::Expr>, vstack: &mut VStack, cenv: &CEn
                         * VAR_SIZE;
 
                     output.text.push(format!("{} {}, {}", OP_ADD, REG_MAIN, voffset));
-
-                    // dereferencjujemy tylko klasę
-                    if let ast::Prim::Class(_) = expr.get_prim() {
-                        output
-                            .text
-                            .push(format!("{} {}, {} ptr [{}]", OP_MOV, REG_AUX, MEM_WORD_SIZE, REG_MAIN));
-                        push_wrapper(REG_AUX, None, vstack, output);
-                    } else {
-                        push_wrapper(REG_MAIN, None, vstack, output);
-                    }
+                    push_wrapper(REG_MAIN, None, vstack, output);
                 }
-                _ => panic!(),
+                _ => unreachable!(),
             }
         }
         ast::Expr::Mthd(_expr_node, _ident_node, _arg_nodes) => unimplemented!(),
