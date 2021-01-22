@@ -82,6 +82,8 @@ static VTABLE_IDENT: &str = "__vtable";
 //       rozwiązanie: vstack_variable_present => bool (korzystamy z tego przy wyciąganiu )
 // TODO: choćby i jednoużyciowe wrappery na {v,f}members_get_offset?
 // TODO: README: wszystkie metody są wirtualne
+// TODO: wrappery na nazwy metod do vtable
+// TODO: clippy może wskazać głupie błędy
 
 type VOffsets = Vec<ast::Ident>;
 type FOffsets = Vec<(ast::Ident, ast::Ident)>;
@@ -148,6 +150,30 @@ fn vstack_shrink_stack(vstack: &mut VStack, vars: usize, output: &mut Output) {
 
 fn vstack_local_exists(vstack: &VStack, vname: &ast::Ident) -> bool {
     vstack.0.contains(vname)
+}
+
+fn cenv_get_field_offset(cenv: &CEnv, class_name: &ast::Ident, field_name: &ast::Ident) -> usize {
+    let field_idx = cenv
+        .get(class_name)
+        .unwrap()
+        .0
+        .iter()
+        .position(|vname| vname == field_name)
+        .unwrap();
+
+    field_idx * VAR_SIZE
+}
+
+fn cenv_get_method_offset(cenv: &CEnv, class_name: &ast::Ident, method_name: &ast::Ident) -> usize {
+    let method_idx = cenv
+        .get(class_name)
+        .unwrap()
+        .1
+        .iter()
+        .position(|(mname, _mimplementator)| mname == method_name)
+        .unwrap();
+
+    method_idx * VAR_SIZE
 }
 
 fn code_shrink_stack(n: usize) -> String {
@@ -242,8 +268,10 @@ pub fn compile(cfdefs: &(Vec<ast::Node<ast::ClassDef>>, Vec<ast::Node<ast::FunDe
     output.rodata.push(format!("{}: .asciz \"\"", EMPTY_STRING_LABEL));
 
     for fdef in &cfdefs.1 {
-        compile_fn(fdef, &cenv, &mut labels, &mut output);
+        compile_fn(fdef, &cenv, &mut labels, &mut output, &None);
     }
+
+    // TODO: metody
 
     for directive in output.directives {
         print_wrapper(&directive);
@@ -262,7 +290,13 @@ pub fn compile(cfdefs: &(Vec<ast::Node<ast::ClassDef>>, Vec<ast::Node<ast::FunDe
     }
 }
 
-fn compile_fn(fdef: &ast::Node<ast::FunDef>, cenv: &CEnv, labels: &mut Labels, output: &mut Output) {
+fn compile_fn(
+    fdef: &ast::Node<ast::FunDef>,
+    cenv: &CEnv,
+    labels: &mut Labels,
+    output: &mut Output,
+    class_name_option: &Option<ast::Ident>,
+) {
     let mut vstack: VStack = (vec![], vec![0]);
 
     let (_, ident_node, arg_nodes, block_node) = fdef.data();
@@ -289,29 +323,43 @@ fn compile_fn(fdef: &ast::Node<ast::FunDef>, cenv: &CEnv, labels: &mut Labels, o
         );
     }
 
-    compile_block(block_node.data(), &mut vstack, cenv, labels, output);
+    compile_block(block_node.data(), &mut vstack, cenv, labels, output, class_name_option);
 
     output.text.extend(code_epilogue());
 }
 
-fn compile_block(stmts: &Vec<ast::Node<ast::Stmt>>, vstack: &mut VStack, cenv: &CEnv, labels: &mut Labels, output: &mut Output) {
+fn compile_block(
+    stmts: &Vec<ast::Node<ast::Stmt>>,
+    vstack: &mut VStack,
+    cenv: &CEnv,
+    labels: &mut Labels,
+    output: &mut Output,
+    class_name_option: &Option<ast::Ident>,
+) {
     vstack_enter_scope(vstack);
 
     for stmt in stmts {
-        compile_stmt(stmt, vstack, cenv, labels, output);
+        compile_stmt(stmt, vstack, cenv, labels, output, class_name_option);
     }
 
     vstack_exit_scope(vstack, output);
 }
 
-fn compile_stmt(stmt: &ast::Node<ast::Stmt>, vstack: &mut VStack, cenv: &CEnv, labels: &mut Labels, output: &mut Output) {
+fn compile_stmt(
+    stmt: &ast::Node<ast::Stmt>,
+    vstack: &mut VStack,
+    cenv: &CEnv,
+    labels: &mut Labels,
+    output: &mut Output,
+    class_name_option: &Option<ast::Ident>,
+) {
     match stmt.data() {
         ast::Stmt::Empty => (),
         ast::Stmt::Expr(expr_node) => {
-            compile_expr_ptr(expr_node, vstack, cenv, labels, output);
+            compile_expr_ptr(expr_node, vstack, cenv, labels, output, class_name_option);
             vstack_shrink_stack(vstack, 1, output);
         }
-        ast::Stmt::Block(block_node) => compile_block(block_node.data(), vstack, cenv, labels, output),
+        ast::Stmt::Block(block_node) => compile_block(block_node.data(), vstack, cenv, labels, output, class_name_option),
         ast::Stmt::Incr(ident_node) | ast::Stmt::Decr(ident_node) => {
             let offset = vstack_get_offset(vstack, ident_node.data());
             let op_code = match stmt.data() {
@@ -328,7 +376,7 @@ fn compile_stmt(stmt: &ast::Node<ast::Stmt>, vstack: &mut VStack, cenv: &CEnv, l
             output.text.extend(code_epilogue());
         }
         ast::Stmt::Ret(expr_node) => {
-            compile_expr_val(expr_node, vstack, cenv, labels, output);
+            compile_expr_val(expr_node, vstack, cenv, labels, output, class_name_option);
             pop_wrapper(REG_FN_RETVAL, vstack, output);
 
             vstack_exit_fn(vstack, output);
@@ -354,18 +402,18 @@ fn compile_stmt(stmt: &ast::Node<ast::Stmt>, vstack: &mut VStack, cenv: &CEnv, l
                         push_wrapper(REG_MAIN, Some(&ident_node.data().clone()), vstack, output);
                     }
                     ast::Item::Init(ident_node, expr_node) => {
-                        compile_expr_val(expr_node, vstack, cenv, labels, output);
+                        compile_expr_val(expr_node, vstack, cenv, labels, output, class_name_option);
                         vstack_rename_top(vstack, ident_node.data().clone());
                     }
                 };
             }
         }
         ast::Stmt::Asgn(lhs_expr_node, rhs_expr_node) => {
-            compile_expr_val(rhs_expr_node, vstack, cenv, labels, output);
+            compile_expr_val(rhs_expr_node, vstack, cenv, labels, output, class_name_option);
 
             match lhs_expr_node.data() {
                 ast::Expr::Var(_) | ast::Expr::Dot(_, _) => {
-                    compile_expr_ptr(lhs_expr_node, vstack, cenv, labels, output);
+                    compile_expr_ptr(lhs_expr_node, vstack, cenv, labels, output, class_name_option);
                 }
                 _ => unreachable!(),
             }
@@ -377,11 +425,11 @@ fn compile_stmt(stmt: &ast::Node<ast::Stmt>, vstack: &mut VStack, cenv: &CEnv, l
             let if_label_after = format!("if_{}_after", labels.len());
             labels.insert(if_label_after.clone());
 
-            compile_expr_val(expr_node, vstack, cenv, labels, output);
+            compile_expr_val(expr_node, vstack, cenv, labels, output, class_name_option);
             pop_wrapper(REG_MAIN, vstack, output);
             output.text.push(format!("{} {}, {}", OP_CMP, REG_MAIN, VAL_FALSE));
             output.text.push(format!("{} {}", JMP_EQ, if_label_after));
-            compile_block(&vec![*stmt_node.clone()], vstack, cenv, labels, output);
+            compile_block(&vec![*stmt_node.clone()], vstack, cenv, labels, output, class_name_option);
             output.text.push(format!("{}:", if_label_after));
         }
         ast::Stmt::IfElse(expr_node, true_stmt_node, false_stmt_node) => {
@@ -394,18 +442,32 @@ fn compile_stmt(stmt: &ast::Node<ast::Stmt>, vstack: &mut VStack, cenv: &CEnv, l
                 cond_label_false.clone(),
             ]);
 
-            compile_expr_val(expr_node, vstack, cenv, labels, output);
+            compile_expr_val(expr_node, vstack, cenv, labels, output, class_name_option);
             pop_wrapper(REG_MAIN, vstack, output);
             output.text.push(format!("{} {}, {}", OP_CMP, REG_MAIN, VAL_FALSE));
             output.text.push(format!("{} {}", JMP_EQ, cond_label_false));
             output.text.push(format!("{} {}", JMP_ALWAYS, cond_label_true));
 
             output.text.push(format!("{}:", &cond_label_true));
-            compile_block(&vec![*true_stmt_node.clone()], vstack, cenv, labels, output);
+            compile_block(
+                &vec![*true_stmt_node.clone()],
+                vstack,
+                cenv,
+                labels,
+                output,
+                class_name_option,
+            );
             output.text.push(format!("{} {}", JMP_ALWAYS, cond_label_after));
 
             output.text.push(format!("{}:", &cond_label_false));
-            compile_block(&vec![*false_stmt_node.clone()], vstack, cenv, labels, output);
+            compile_block(
+                &vec![*false_stmt_node.clone()],
+                vstack,
+                cenv,
+                labels,
+                output,
+                class_name_option,
+            );
             output.text.push(format!("{} {}", JMP_ALWAYS, cond_label_after));
 
             output.text.push(format!("{}:", &cond_label_after));
@@ -416,12 +478,12 @@ fn compile_stmt(stmt: &ast::Node<ast::Stmt>, vstack: &mut VStack, cenv: &CEnv, l
             labels.extend(vec![while_label_cond.clone(), while_label_after.clone()]);
 
             output.text.push(format!("{}:", &while_label_cond));
-            compile_expr_val(expr_node, vstack, cenv, labels, output);
+            compile_expr_val(expr_node, vstack, cenv, labels, output, class_name_option);
             pop_wrapper(REG_MAIN, vstack, output);
             output.text.push(format!("{} {}, {}", OP_CMP, REG_MAIN, VAL_FALSE));
             output.text.push(format!("{} {}", JMP_EQ, while_label_after));
 
-            compile_block(&vec![*stmt_node.clone()], vstack, cenv, labels, output);
+            compile_block(&vec![*stmt_node.clone()], vstack, cenv, labels, output, class_name_option);
             output.text.push(format!("{} {}", JMP_ALWAYS, while_label_cond));
 
             output.text.push(format!("{}:", &while_label_after));
@@ -430,8 +492,15 @@ fn compile_stmt(stmt: &ast::Node<ast::Stmt>, vstack: &mut VStack, cenv: &CEnv, l
 }
 
 // na stosie jest wartość (która dla obiektów i stringów jest wskaźnikiem)
-fn compile_expr_val(expr: &ast::Node<ast::Expr>, vstack: &mut VStack, cenv: &CEnv, labels: &mut Labels, output: &mut Output) {
-    compile_expr_ptr(expr, vstack, cenv, labels, output);
+fn compile_expr_val(
+    expr: &ast::Node<ast::Expr>,
+    vstack: &mut VStack,
+    cenv: &CEnv,
+    labels: &mut Labels,
+    output: &mut Output,
+    class_name_option: &Option<ast::Ident>,
+) {
+    compile_expr_ptr(expr, vstack, cenv, labels, output, class_name_option);
     match expr.data() {
         ast::Expr::Var(_) | ast::Expr::Dot(_, _) => {
             pop_wrapper(REG_MAIN, vstack, output);
@@ -443,7 +512,14 @@ fn compile_expr_val(expr: &ast::Node<ast::Expr>, vstack: &mut VStack, cenv: &CEn
 
 // na stosie jest wartość (która dla obiektów i stingów jest wskaźnikiem)
 //                lub wskaźnik (w przypadku zmiennej lub pola struktury)
-fn compile_expr_ptr(expr: &ast::Node<ast::Expr>, vstack: &mut VStack, cenv: &CEnv, labels: &mut Labels, output: &mut Output) {
+fn compile_expr_ptr(
+    expr: &ast::Node<ast::Expr>,
+    vstack: &mut VStack,
+    cenv: &CEnv,
+    labels: &mut Labels,
+    output: &mut Output,
+    class_name_option: &Option<ast::Ident>,
+) {
     match expr.data() {
         ast::Expr::Int(n) => {
             output.text.push(format!("{} {}, {}", OP_MOV, REG_MAIN, n));
@@ -471,11 +547,9 @@ fn compile_expr_ptr(expr: &ast::Node<ast::Expr>, vstack: &mut VStack, cenv: &CEn
                 output.text.push(format!("{} {}, {}", OP_SUB, REG_MAIN, offset));
                 push_wrapper(REG_MAIN, None, vstack, output);
             } else {
-                // problem: w której funkcji jestem? (dodatkowy argument do wszystkiego)?
-                //                                    Option<ast::Ident>
-                unimplemented!();
+                let class_name = class_name_option.clone().unwrap();
                 let self_offset = vstack_get_offset(vstack, &SELF_IDENT.to_string());
-                let field_offset = 0; // * VAR_SIZE
+                let field_offset = cenv_get_field_offset(cenv, &class_name, ident_node.data());
 
                 output.text.push(format!("{} {}, {}", OP_MOV, REG_MAIN, REG_BASE));
                 output.text.push(format!("{} {}, {}", OP_SUB, REG_MAIN, self_offset));
@@ -484,13 +558,13 @@ fn compile_expr_ptr(expr: &ast::Node<ast::Expr>, vstack: &mut VStack, cenv: &CEn
             }
         }
         ast::Expr::Neg(expr_node) => {
-            compile_expr_val(expr_node, vstack, cenv, labels, output);
+            compile_expr_val(expr_node, vstack, cenv, labels, output, class_name_option);
             pop_wrapper(REG_MAIN, vstack, output);
             output.text.push(format!("{} {}", OP_NEGATION, REG_MAIN));
             push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::Not(expr_node) => {
-            compile_expr_val(expr_node, vstack, cenv, labels, output);
+            compile_expr_val(expr_node, vstack, cenv, labels, output, class_name_option);
             pop_wrapper(REG_AUX, vstack, output);
             output.text.push(format!("{} {}, {}", OP_XOR, REG_TMP, REG_TMP));
             output.text.push(format!("{} {}, {}", OP_CMP, REG_AUX, VAL_FALSE));
@@ -508,7 +582,7 @@ fn compile_expr_ptr(expr: &ast::Node<ast::Expr>, vstack: &mut VStack, cenv: &CEn
             // TODO: nadpisywany rejestr jeśli przy obliczaniu wartości wyrażenia wywołujemy funkcję
             // TODO: policzyć wszystkie argumenty, a potem dopiero robić pop()
             for i in (0..args_count).rev() {
-                compile_expr_val(&arg_expr_nodes[i], vstack, cenv, labels, output);
+                compile_expr_val(&arg_expr_nodes[i], vstack, cenv, labels, output, class_name_option);
             }
             for i in 0..std::cmp::min(ARG_REGS.len(), args_count) {
                 pop_wrapper(ARG_REGS[i], vstack, output);
@@ -520,8 +594,8 @@ fn compile_expr_ptr(expr: &ast::Node<ast::Expr>, vstack: &mut VStack, cenv: &CEn
             push_wrapper(REG_FN_RETVAL, None, vstack, output);
         }
         ast::Expr::Add(expr1, expr2) if expr1.get_prim() == ast::Prim::Str => {
-            compile_expr_val(&expr1, vstack, cenv, labels, output);
-            compile_expr_val(&expr2, vstack, cenv, labels, output);
+            compile_expr_val(&expr1, vstack, cenv, labels, output, class_name_option);
+            compile_expr_val(&expr2, vstack, cenv, labels, output, class_name_option);
             pop_wrapper(ARG_REGS[1], vstack, output);
             pop_wrapper(ARG_REGS[0], vstack, output);
 
@@ -530,8 +604,8 @@ fn compile_expr_ptr(expr: &ast::Node<ast::Expr>, vstack: &mut VStack, cenv: &CEn
             push_wrapper(REG_FN_RETVAL, None, vstack, output);
         }
         ast::Expr::Add(expr1, expr2) | ast::Expr::Sub(expr1, expr2) | ast::Expr::Mul(expr1, expr2) => {
-            compile_expr_val(&expr1, vstack, cenv, labels, output);
-            compile_expr_val(&expr2, vstack, cenv, labels, output);
+            compile_expr_val(&expr1, vstack, cenv, labels, output, class_name_option);
+            compile_expr_val(&expr2, vstack, cenv, labels, output, class_name_option);
             pop_wrapper(REG_AUX, vstack, output);
             pop_wrapper(REG_MAIN, vstack, output);
 
@@ -546,8 +620,8 @@ fn compile_expr_ptr(expr: &ast::Node<ast::Expr>, vstack: &mut VStack, cenv: &CEn
             push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::Div(expr1, expr2) | ast::Expr::Mod(expr1, expr2) => {
-            compile_expr_val(&expr1, vstack, cenv, labels, output);
-            compile_expr_val(&expr2, vstack, cenv, labels, output);
+            compile_expr_val(&expr1, vstack, cenv, labels, output, class_name_option);
+            compile_expr_val(&expr2, vstack, cenv, labels, output, class_name_option);
             pop_wrapper(REG_AUX, vstack, output);
             pop_wrapper(REG_DIVIDEND, vstack, output);
 
@@ -571,7 +645,7 @@ fn compile_expr_ptr(expr: &ast::Node<ast::Expr>, vstack: &mut VStack, cenv: &CEn
             let or_and_label_after = format!("or_and_{}_after", labels.len());
             labels.insert(or_and_label_after.clone());
 
-            compile_expr_val(&expr1, vstack, cenv, labels, output);
+            compile_expr_val(&expr1, vstack, cenv, labels, output, class_name_option);
             // TODO: dlaczego nie pop_wrapper() ?
             output
                 .text
@@ -581,7 +655,7 @@ fn compile_expr_ptr(expr: &ast::Node<ast::Expr>, vstack: &mut VStack, cenv: &CEn
             output.text.push(format!("{} {}", JMP_EQ, or_and_label_after));
 
             vstack_shrink_stack(vstack, 1, output);
-            compile_expr_val(&expr2, vstack, cenv, labels, output);
+            compile_expr_val(&expr2, vstack, cenv, labels, output, class_name_option);
             output.text.push(format!("{}:", or_and_label_after));
         }
         ast::Expr::EQ(expr1, expr2)
@@ -590,8 +664,8 @@ fn compile_expr_ptr(expr: &ast::Node<ast::Expr>, vstack: &mut VStack, cenv: &CEn
         | ast::Expr::LEQ(expr1, expr2)
         | ast::Expr::GTH(expr1, expr2)
         | ast::Expr::GEQ(expr1, expr2) => {
-            compile_expr_val(&expr1, vstack, cenv, labels, output);
-            compile_expr_val(&expr2, vstack, cenv, labels, output);
+            compile_expr_val(&expr1, vstack, cenv, labels, output, class_name_option);
+            compile_expr_val(&expr2, vstack, cenv, labels, output, class_name_option);
             pop_wrapper(REG_AUX, vstack, output);
             pop_wrapper(REG_MAIN, vstack, output);
             output.text.push(format!("{} {}, {}", OP_XOR, REG_TMP, REG_TMP));
@@ -622,20 +696,12 @@ fn compile_expr_ptr(expr: &ast::Node<ast::Expr>, vstack: &mut VStack, cenv: &CEn
             push_wrapper(REG_FN_RETVAL, None, vstack, output);
         }
         ast::Expr::Dot(lhs_node, field_ident_node) => {
-            compile_expr_val(lhs_node, vstack, cenv, labels, output);
+            compile_expr_val(lhs_node, vstack, cenv, labels, output, class_name_option);
             pop_wrapper(REG_MAIN, vstack, output);
 
             match lhs_node.get_prim() {
                 ast::Prim::Class(class_name) => {
-                    let voffset = cenv
-                        .get(&class_name)
-                        .unwrap()
-                        .0
-                        .iter()
-                        .position(|vname| vname == field_ident_node.data())
-                        .unwrap()
-                        * VAR_SIZE;
-
+                    let voffset = cenv_get_field_offset(cenv, &class_name, field_ident_node.data());
                     output.text.push(format!("{} {}, {}", OP_ADD, REG_MAIN, voffset));
                     push_wrapper(REG_MAIN, None, vstack, output);
                 }
