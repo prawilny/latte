@@ -381,6 +381,31 @@ fn compile_block(
     vstack_exit_scope(vstack, output);
 }
 
+fn compile_var_ptr(
+    var_ident: &ast::Ident,
+    vstack: &mut VStack,
+    cenv: &CEnv,
+    output: &mut Output,
+    class_name_option: &Option<ast::Ident>,
+) {
+    if vstack_local_exists(vstack, var_ident) {
+        let offset = vstack_get_offset(vstack, var_ident);
+        output.text.push(format!("{} {}, {}", OP_MOV, REG_MAIN, REG_BASE));
+        output.text.push(format!("{} {}, {}", OP_SUB, REG_MAIN, offset));
+        push_wrapper(REG_MAIN, None, vstack, output);
+    } else {
+        let class_name = class_name_option.clone().unwrap();
+        let self_offset = vstack_get_offset(vstack, &SELF_IDENT.to_string());
+        let field_offset = cenv_get_field_offset(cenv, &class_name, var_ident);
+
+        output.text.push(format!("{} {}, {}", OP_MOV, REG_AUX, REG_BASE));
+        output.text.push(format!("{} {}, {}", OP_SUB, REG_AUX, self_offset));
+        output.text.push(format!("{} {}, {} ptr [{}]", OP_MOV, REG_MAIN, MEM_WORD_SIZE, REG_AUX));
+        output.text.push(format!("{} {}, {}", OP_ADD, REG_MAIN, field_offset));
+        push_wrapper(REG_MAIN, None, vstack, output);
+    }
+}
+
 fn compile_stmt(
     stmt: &ast::Node<ast::Stmt>,
     vstack: &mut VStack,
@@ -397,15 +422,17 @@ fn compile_stmt(
         }
         ast::Stmt::Block(block_node) => compile_block(block_node.data(), vstack, cenv, labels, output, class_name_option),
         ast::Stmt::Incr(ident_node) | ast::Stmt::Decr(ident_node) => {
-            let offset = vstack_get_offset(vstack, ident_node.data());
             let op_code = match stmt.data() {
                 ast::Stmt::Incr(_) => OP_INC,
                 ast::Stmt::Decr(_) => OP_DEC,
                 _ => unreachable!(),
             };
+
+            compile_var_ptr(ident_node.data(), vstack, cenv, output, class_name_option);
+            pop_wrapper(REG_MAIN, vstack, output);
             output
                 .text
-                .push(format!("{} {} ptr [{} - {}]", op_code, MEM_WORD_SIZE, REG_BASE, offset));
+                .push(format!("{} {} ptr [{}]", op_code, MEM_WORD_SIZE, REG_MAIN));
         }
         ast::Stmt::VRet => {
             vstack_exit_fn(vstack, output);
@@ -577,21 +604,7 @@ fn compile_expr_ptr(
             push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::Var(ident_node) => {
-            if vstack_local_exists(vstack, ident_node.data()) {
-                let offset = vstack_get_offset(vstack, ident_node.data());
-                output.text.push(format!("{} {}, {}", OP_MOV, REG_MAIN, REG_BASE));
-                output.text.push(format!("{} {}, {}", OP_SUB, REG_MAIN, offset));
-                push_wrapper(REG_MAIN, None, vstack, output);
-            } else {
-                let class_name = class_name_option.clone().unwrap();
-                let self_offset = vstack_get_offset(vstack, &SELF_IDENT.to_string());
-                let field_offset = cenv_get_field_offset(cenv, &class_name, ident_node.data());
-
-                output.text.push(format!("{} {}, {}", OP_MOV, REG_MAIN, REG_BASE));
-                output.text.push(format!("{} {}, {}", OP_SUB, REG_MAIN, self_offset));
-                output.text.push(format!("{} {}, {}", OP_ADD, REG_MAIN, field_offset));
-                push_wrapper(REG_MAIN, None, vstack, output);
-            }
+            compile_var_ptr(ident_node.data(), vstack, cenv, output, class_name_option);
         }
         ast::Expr::Neg(expr_node) => {
             compile_expr_val(expr_node, vstack, cenv, labels, output, class_name_option);
