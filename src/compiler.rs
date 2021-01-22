@@ -84,6 +84,7 @@ static VTABLE_IDENT: &str = "__vtable";
 // TODO: README: wszystkie metody są wirtualne
 // TODO: wrappery na nazwy metod do vtable
 // TODO: clippy może wskazać głupie błędy
+// TODO: vtable jako drugi argument __new
 
 type VOffsets = Vec<ast::Ident>;
 type FOffsets = Vec<(ast::Ident, ast::Ident)>;
@@ -300,7 +301,11 @@ fn compile_fn(
     let mut vstack: VStack = (vec![], vec![0]);
 
     let (_, ident_node, arg_nodes, block_node) = fdef.data();
-    let arg_names: Vec<ast::Ident> = arg_nodes.iter().map(|arg_node| arg_node.data().1.data().clone()).collect();
+    let mut arg_names: Vec<ast::Ident> = arg_nodes.iter().map(|arg_node| arg_node.data().1.data().clone()).collect();
+    if let Some(_) = class_name_option {
+        arg_names.insert(0, SELF_IDENT.to_string()); // this
+    }
+
     let stack_args_count = if arg_names.len() > ARG_REGS.len() {
         arg_names.len() - ARG_REGS.len()
     } else {
@@ -581,8 +586,8 @@ fn compile_expr_ptr(
             };
             // TODO: nadpisywany rejestr jeśli przy obliczaniu wartości wyrażenia wywołujemy funkcję
             // TODO: policzyć wszystkie argumenty, a potem dopiero robić pop()
-            for i in (0..args_count).rev() {
-                compile_expr_val(&arg_expr_nodes[i], vstack, cenv, labels, output, class_name_option);
+            for arg_expr_node in arg_expr_nodes.iter().rev() {
+                compile_expr_val(arg_expr_node, vstack, cenv, labels, output, class_name_option);
             }
             for i in 0..std::cmp::min(ARG_REGS.len(), args_count) {
                 pop_wrapper(ARG_REGS[i], vstack, output);
@@ -708,6 +713,35 @@ fn compile_expr_ptr(
                 _ => unreachable!(),
             }
         }
-        ast::Expr::Mthd(_expr_node, _ident_node, _arg_nodes) => unimplemented!(),
+        ast::Expr::Mthd(lhs_node, method_ident_node, arg_expr_nodes) => {
+            match lhs_node.get_prim() {
+                ast::Prim::Class(class_name) => {
+                    let args_count = arg_expr_nodes.len() + 1;
+                    let stack_args_count = if args_count > ARG_REGS.len() {
+                        args_count - ARG_REGS.len()
+                    } else {
+                        0
+                    };
+
+                    for arg_expr_node in std::iter::once(&(**lhs_node)).chain(arg_expr_nodes.iter()).rev() {
+                        compile_expr_val(arg_expr_node, vstack, cenv, labels, output, class_name_option);
+                    }
+                    for i in 0..std::cmp::min(ARG_REGS.len(), args_count) {
+                        pop_wrapper(ARG_REGS[i], vstack, output);
+                    }
+
+                    let method_offset = cenv_get_method_offset(cenv, &class_name, method_ident_node.data());
+                    output.text.push(format!("{} {}, {} ptr [{}]", OP_MOV, REG_MAIN, MEM_WORD_SIZE, ARG_REGS[0]));
+                    output.text.push(format!("{} {}, {}", OP_ADD, REG_MAIN, method_offset));
+                    output.text.push(format!("{} {}", OP_CALL, REG_MAIN));
+
+                    if stack_args_count > 0 {
+                        vstack_shrink_stack(vstack, stack_args_count, output);
+                    }
+                    push_wrapper(REG_FN_RETVAL, None, vstack, output);
+                }
+                _ => unreachable!(),
+            }
+        }
     }
 }
