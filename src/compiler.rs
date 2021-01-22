@@ -14,10 +14,10 @@ static VAR_SIZE: usize = std::mem::size_of::<IntType>();
 static FN_STRCAT: &str = "__strcat";
 static FN_NEW: &str = "__new";
 
-static REG_MAIN: &str = "r11";
-static REG_AUX: &str = "r10";
-static REG_TMP: &str = "r9";
-static REG_TMP_BYTE: &str = "r9b";
+static REG_MAIN: &str = "r14";
+static REG_AUX: &str = "r13";
+static REG_TMP: &str = "r12";
+static REG_TMP_BYTE: &str = "r12b";
 
 static REG_FN_RETVAL: &str = "rax";
 
