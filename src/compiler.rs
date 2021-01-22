@@ -67,6 +67,8 @@ static VSTACK_VAR_OFFSET: usize = VAR_SIZE;
 
 static VTABLE_IDENT: &str = "__vtable";
 
+static ASM_ADDR_SIZE_DIR: &str = ".quad";
+
 // TODO: deduplikacja stringów
 // TODO: sprawdzić, czy stos jest posprzątany (nie ma śmieci przy obliczaniu wyrażeń), żeby wołanie funkcji działało
 // TODO: sprawdzić "_", unimplemented!, unreachable!
@@ -117,6 +119,13 @@ fn pop_wrapper(target: &str, vstack: &mut VStack, output: &mut Output) {
 
 fn vtable_label(class_name: &ast::Ident) -> String {
     format!("__vtable__{}", class_name)
+}
+
+fn fn_label(class_name_option: Option<ast::Ident>, fn_name: &ast::Ident) -> String {
+    match class_name_option {
+        None => format!("{}", fn_name),
+        Some(class_name) => format!("{}_{}", class_name, fn_name),
+    }
 }
 
 fn vstack_get_offset(vstack: &VStack, ident: &ast::Ident) -> usize {
@@ -192,15 +201,24 @@ fn code_epilogue() -> Vec<String> {
     vec![s1, s2, s3]
 }
 
-fn directives(fdefs: &Vec<ast::Node<ast::FunDef>>, output: &mut Output) {
-    output.directives.push(".intel_syntax".to_string());
+fn directives() -> Vec<String> {
+    vec![".intel_syntax".to_string(), ".global main".to_string()]
+}
 
-    for fdef in fdefs {
-        let fn_name = &fdef.data().1.data();
-        print_wrapper(&format!(".global {}", fn_name));
+fn rodata_constants(cenv: &CEnv) -> Vec<String> {
+    let mut constants = vec![format!("{}: .asciz \"\"", EMPTY_STRING_LABEL)];
+    for (class_name, (_, class_methods)) in cenv {
+        constants.push(format!("{}:", vtable_label(class_name)));
+        for (method_name, implementing_class) in class_methods {
+            constants.push(format!(
+                "{} {}",
+                ASM_ADDR_SIZE_DIR,
+                fn_label(Some(implementing_class.to_string()), method_name)
+            ));
+        }
+        constants.push(format!("{} 0", ASM_ADDR_SIZE_DIR));
     }
-
-    // TODO: vtable
+    constants
 }
 
 fn register_class_in_env(ident: &ast::Ident, cenv: &mut CEnv, cdefs: &HashMap<ast::Ident, ast::Node<ast::ClassDef>>) {
@@ -267,16 +285,16 @@ pub fn compile(cfdefs: &(Vec<ast::Node<ast::ClassDef>>, Vec<ast::Node<ast::FunDe
 
     let cenv = class_env(&cfdefs.0);
 
-    directives(&cfdefs.1, &mut output);
-
-    labels.insert(EMPTY_STRING_LABEL.to_string());
-    output.rodata.push(format!("{}: .asciz \"\"", EMPTY_STRING_LABEL));
+    output.directives = directives();
+    output.rodata = rodata_constants(&cenv);
 
     for fdef in &cfdefs.1 {
         compile_fn(fdef, &cenv, &mut labels, &mut output, &None);
     }
 
-    // TODO: metody
+    for cdef in &cfdefs.0 {
+
+    }
 
     for directive in output.directives {
         print_wrapper(&directive);
@@ -316,7 +334,7 @@ fn compile_fn(
         0
     };
 
-    output.text.push(format!("{}:", ident_node.data()));
+    output.text.push(format!("{}:", fn_label(None, ident_node.data())));
     output.text.push(format!("{} {}", OP_PUSH, REG_BASE));
     output.text.push(format!("{} {}, {}", OP_MOV, REG_BASE, REG_STACK));
 
@@ -655,7 +673,7 @@ fn compile_expr_ptr(
             labels.insert(or_and_label_after.clone());
 
             compile_expr_val(&expr1, vstack, cenv, labels, output, class_name_option);
-            // TODO: dlaczego nie pop_wrapper() ?
+            // nie OP_POP, bo potrzebujemy zostawić wartość logiczną na stosie
             output
                 .text
                 .push(format!("{} {}, {} ptr [{}]", OP_MOV, REG_MAIN, MEM_WORD_SIZE, REG_STACK));
