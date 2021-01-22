@@ -87,6 +87,7 @@ static ASM_ADDR_SIZE_DIR: &str = ".quad";
 // TODO: wrappery na nazwy metod do vtable
 // TODO: clippy może wskazać głupie błędy
 // TODO: vtable jako drugi argument __new
+// TODO: rozszerzenia opisane w README (w tym ograniczenie na liczbę pól)
 
 type VOffsets = Vec<ast::Ident>;
 type FOffsets = Vec<(ast::Ident, ast::Ident)>;
