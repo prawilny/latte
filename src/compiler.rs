@@ -77,6 +77,7 @@ static ASM_ADDR_SIZE_DIR: &str = ".quad";
 // TODO: poprawki czyszczenia stosu (jest 1 pop() dla dowolnego var: ussize chyba)
 // TODO: porównywanie stringów?
 // TODO: while vs do while
+// TODO: obsługa samego `self`?
 
 type VOffsets = Vec<ast::Ident>;
 type FOffsets = Vec<(ast::Ident, ast::Ident)>;

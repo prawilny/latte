@@ -7,6 +7,10 @@
 //       jeśli tak - pewnie by należało wydzielić moduł na to
 // TODO: wypełnienie typów nowych wyrażeń
 // TODO: wypełnianie typów wyrażeń w instrukcjach
+// TODO: zmiana Class("C") na cokolwiek innego
+// TODO: czy obsługa self jest poprawna?
+// TODO: któryś unwrap() się wywala
+// TODO: README: null tylko typowany
 
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
@@ -51,7 +55,7 @@ fn cmp_types(expected: &ast::Type, actual: &ast::Type, ienv: &IEnv) -> bool {
                 if exp_arg_prims.len() == act_arg_prims.len() {
                     let cmps: Vec<bool> = exp_arg_prims[1..] // obcinamy self
                         .iter()
-                        .zip(act_arg_prims.iter())
+                        .zip(act_arg_prims[1..].iter()) // obcinamy self
                         .map(|(exp_arg_prim, act_arg_prim)| {
                             return cmp_prims(exp_arg_prim, act_arg_prim, ienv);
                         })
