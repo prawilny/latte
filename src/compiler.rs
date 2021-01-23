@@ -69,25 +69,13 @@ static VTABLE_IDENT: &str = "__vtable";
 
 static ASM_ADDR_SIZE_DIR: &str = ".quad";
 
-// TODO: deduplikacja stringów
 // TODO: sprawdzić, czy stos jest posprzątany (nie ma śmieci przy obliczaniu wyrażeń), żeby wołanie funkcji działało
 // TODO: sprawdzić "_", unimplemented!, unreachable!
-// TODO: funkcje obiektów w runtime (malloc, free, ...)
 // TODO: test kompilatora na większej wersji niedziałającego testu backendu (ten z nadpisywaniem rejestrów, w których przekazywane są argumenty)
-// TODO: uwaga na zmienne z klasy w metodach
-// TODO: upewnienie się, że obliczanie argumentów nie śmieci na stosie (lub sprzątać .tmp przy/przed obliczaniem)
-// TODO: dodawanie self do argumentów
-// TODO: czy chcemy vtable w structach?
-//       chyba tak, ale wtedy chyba warto mieć coś po vtable, żeby pusty vtable nie wskazywał na vtable innej klasy
 // TODO: sprawdzić, czy gdzieś wstawienie obiektu nie psuje
-// TODO: problem z przedeklarowaniem zmiennej klasy wewnątrz metody
-//       rozwiązanie: vstack_variable_present => bool (korzystamy z tego przy wyciąganiu )
-// TODO: choćby i jednoużyciowe wrappery na {v,f}members_get_offset?
-// TODO: README: wszystkie metody są wirtualne
-// TODO: wrappery na nazwy metod do vtable
 // TODO: clippy może wskazać głupie błędy
-// TODO: vtable jako drugi argument __new
-// TODO: rozszerzenia opisane w README (w tym ograniczenie na liczbę pól)
+// TODO: poprawki czyszczenia stosu (jest 1 pop() dla dowolnego var: ussize chyba)
+// TODO: porównywanie stringów?
 
 type VOffsets = Vec<ast::Ident>;
 type FOffsets = Vec<(ast::Ident, ast::Ident)>;

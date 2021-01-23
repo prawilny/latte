@@ -1,5 +1,4 @@
 // TODO: sprawdzić "_", unimplemented!, unreachable!
-// TODO: upewnić się, że testy standardowe przechodzą
 // TODO: upewnić się, że dodanie obiektów nie wymaga zmiany niczego więcej
 // TODO: priorytet '.'
 // TODO: sprawdzenie gramatyki
@@ -7,6 +6,7 @@
 // TODO: czy type_checker musi przekazywać rzeczy do kompilatora? (informacje o dziedziczeniu/klasach zmiennych)
 //       jeśli tak - pewnie by należało wydzielić moduł na to
 // TODO: wypełnienie typów nowych wyrażeń
+// TODO: wypełnianie typów wyrażeń w instrukcjach
 
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
@@ -31,7 +31,6 @@ fn is_subclass(child: &ast::Ident, parent: &ast::Ident, ienv: &IEnv) -> bool {
 }
 
 fn cmp_prims(expected: &ast::Prim, actual: &ast::Prim, ienv: &IEnv) -> bool {
-    // TODO: czy matchowane typy się zgadzają
     match (expected, actual) {
         (ast::Prim::Int, ast::Prim::Int) => true,
         (ast::Prim::Str, ast::Prim::Str) => true,
