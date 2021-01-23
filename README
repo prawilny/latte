@@ -64,6 +64,10 @@ Struktura projektu:
 ├── Cargo.lock          - lista zależności wraz z wersjami
 ├── Cargo.toml          - specyfikacja crate'a (pakietu)
 ├── latc_x86_64         - skrypt uruchamiający kompilator
+├── lib
+│   ├── Makefile
+│   ├── runtime.c       - plik z funkcjami bibliotecznymi
+│   └── runtime.o
 ├── Makefile
 ├── README
 ├── rustfmt.toml        - plik konfiguracyjny formatera kodu
