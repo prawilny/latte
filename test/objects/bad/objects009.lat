@@ -1,0 +1,10 @@
+class C {
+
+}
+
+int main() {
+	C x = new C;
+	C y = new C;
+	x + y;
+	return 0;
+}

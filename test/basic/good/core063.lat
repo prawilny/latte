@@ -1,0 +1,14 @@
+int main() {
+	printInt(f(2,true) + f(2,false));
+	return 0;
+}
+
+int f(int x, boolean b) {
+	if (b) {
+		return -x; 
+	}
+	else {
+		return x;
+	}
+	return 0;
+}

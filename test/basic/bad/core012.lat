@@ -1,0 +1,6 @@
+int main() {
+    while (true) {
+        if (readInt() == 1)
+            return 0;
+    }
+}

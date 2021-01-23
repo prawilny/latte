@@ -1,0 +1,10 @@
+# https://beginnersbook.com/2019/07/java-program-to-calculate-simple-interest/
+int main() {
+    int p, r, t, sinterest;
+    p = 2000;
+    r = 6;
+    t = 3;
+    sinterest = (p * r * t) / 100;
+    printInt(sinterest);
+    return 0;
+}

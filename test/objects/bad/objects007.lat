@@ -1,0 +1,11 @@
+class o1 {
+
+}
+
+class o2 extends o3 {
+
+}
+
+int main() {
+	return 0;
+}

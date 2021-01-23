@@ -1,0 +1,18 @@
+# https://www.javatpoint.com/fibonacci-series-in-java
+int main()
+{
+ int n1=0,n2=1,n3,i,count=10;
+ printInt(n1);
+ printInt(n2);
+
+i = 2;
+ while(i<count)
+ {    
+  n3=n1+n2;    
+  printInt(n3);
+  n1=n2;    
+  n2=n3;    
+  i++;
+ }    
+  return 0;
+}

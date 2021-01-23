@@ -1,0 +1,22 @@
+class Person {
+	int age;
+	string name;
+
+	void sayHi() { printString("Hi!"); }
+	
+	int getAge() { return age; }
+	void setAge(int a) { age = a; }
+	
+	string getName() { return name; }
+	void setName(string n) { name = n; }
+}
+
+int main() {
+	Person p = new Person;
+	p.setAge(18);
+	printInt(p.getAge());
+	p.setName("Jan");
+	printString(p.getName());
+	p.sayHi();
+	return 0;
+}

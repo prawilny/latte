@@ -1,0 +1,9 @@
+int main() {
+	1 + 2 + 3;
+	f(-(42), !true);
+	return 2+2;
+}
+
+boolean f(int x, boolean y) {
+	return y;
+}

@@ -1,0 +1,9 @@
+int main(){return 0;}
+
+boolean foo (int x, string s) {
+	while (true) {
+		return true;
+	}
+	return false;
+}
+

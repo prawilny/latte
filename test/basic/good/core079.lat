@@ -1,0 +1,15 @@
+int main() {
+    int i = 1, j=5, k=3;
+    while (i > 0) {
+        while (j > 0){
+            while (k > 0) {
+                if (i%2 == 1 && j%2 == 1 && k%2 == 1)
+                    printString("*");
+                k--;
+            }
+            j--;
+        }
+        i--;
+    }
+    return 0;
+}

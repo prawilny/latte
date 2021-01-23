@@ -1,0 +1,11 @@
+int main() {
+	// Garbage collecting of a string
+	{
+		string s = readString();
+		s = "AAA";
+	}
+	f();
+	return 0;
+}
+
+void f(){}

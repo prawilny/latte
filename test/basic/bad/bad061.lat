@@ -1,0 +1,7 @@
+class janusz extends waldemar {
+  int a;
+}
+
+int main() {
+  return 1;
+}

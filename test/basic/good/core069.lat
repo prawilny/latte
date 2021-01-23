@@ -1,0 +1,19 @@
+int main() {
+	scanf();
+	free();
+	concat();
+	getEmptyString();
+	checkStringEqual();
+	checkStringNotEqual();
+	freeString();
+	return 0;
+}
+
+void scanf(){}
+void free(){}
+void concat(){}
+void getEmptyString(){}
+void checkStringEqual(){}
+void checkStringNotEqual(){}
+void freeString(){}
+

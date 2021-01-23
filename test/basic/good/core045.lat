@@ -1,0 +1,11 @@
+// 1 42 1
+int main() {
+	int x = 1;
+	{
+		printInt(x);
+		int x = 42;
+		printInt(x);
+	}
+	printInt(x);
+	return 0;
+}

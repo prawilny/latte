@@ -1,0 +1,10 @@
+int main() {
+	boolean x = true;
+	if (!x) {
+		printInt(1);
+	}
+	else {
+		printInt(42);
+	}	
+	return 0;
+}

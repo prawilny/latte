@@ -1,0 +1,5 @@
+int main() {
+	error();
+	printString("BAD");
+	return 0;
+}

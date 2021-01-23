@@ -1,0 +1,21 @@
+int while_simplest(int x) {
+  int s=0;
+  printInt(1111111);
+  while(x<10) {
+    x++;
+    s=s+x;
+  }
+  printInt(s);
+  return 0;
+}
+
+int main () {
+  int x;
+  int z;
+
+  x=5;
+  z=7;
+  z=z+while_simplest(x);
+
+  return 0 ;
+}

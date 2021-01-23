@@ -1,0 +1,15 @@
+class Person {
+	int age;
+	Person father;
+}
+
+class Superhero extends Person {
+
+}
+
+int main() {
+	Person p = new Person;
+	Person k = new Superhero;
+	p.father = k;
+	return 0;
+}

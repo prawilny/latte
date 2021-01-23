@@ -1,0 +1,14 @@
+int main() {
+	int x = 1;
+	if (x == 1) {
+		printInt(x);
+		if (x < 0)
+			printInt(x);
+		else
+			printInt(42);
+	}
+	else {
+		printInt(42);
+	}
+	return 0;
+}

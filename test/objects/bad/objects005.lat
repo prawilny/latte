@@ -1,0 +1,9 @@
+class o {
+	void print() { printInt(x); }
+}
+
+int main() {
+	o a = new o;
+	a.print();
+	return 0;
+}

@@ -1,0 +1,11 @@
+class o {
+	int f;
+}
+
+int main() {
+	o a = new o;
+	printInt(a.n);
+	a.n = 1;
+	a.f = "aaa";
+	return 0;
+}

@@ -1,0 +1,39 @@
+int funkcja_whilefalse () {
+  while (false) {
+    printInt(1042);
+  } 
+
+  return 0;
+}
+
+int funkcja_whilenottrue () {
+   while (!true) {
+    printInt(2042);
+  } 
+
+  return 0;
+}
+
+
+int funkcja_whilebool() {
+  while ((!true) || false || (!true)) {
+    printInt(3042);
+  } 
+  return 0;
+}
+
+
+int funkcja_whileboolarytm() {
+  while ((!true) && 23 <= 42) {
+    printInt(4042);
+  } 
+  return 0;
+}
+
+int main() {
+    funkcja_whilefalse();
+    funkcja_whilenottrue();
+    funkcja_whilebool();
+    funkcja_whileboolarytm();
+    return 0;
+}

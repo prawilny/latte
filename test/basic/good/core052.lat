@@ -1,0 +1,8 @@
+int main() {
+	{
+		string s = "asdf";
+	}
+	string s2 = "a" + "b";
+	s2 = "c";
+	return 0;
+}

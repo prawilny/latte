@@ -1,0 +1,43 @@
+int main() {
+	foo42(1);
+
+	foo1(1);
+	foo1(true);
+	foo1(1,2);
+
+	foo2(2,2);
+	foo2();
+	foo2("asdf");
+
+	foo3(1,2) + 2;
+
+	foo4() + 1;
+
+	foo5(1,1);
+}
+
+int foo1(){
+	return 1;
+}
+
+int foo2(int x) {
+	return x + 1;
+}
+
+boolean foo3(int x, int y) {
+	return x <= y;
+}
+
+void foo4(){
+
+}
+
+string foo5(int x, int x){
+	return "asdf";
+}
+
+void foo6(){
+}
+
+void foo6(){
+}

@@ -1,0 +1,11 @@
+int main() {
+	int x = 1;
+	if (x == 1) {
+		x = 2;
+		if (x == 3) {
+			x = 4;
+		}
+	}
+	printInt(x);
+	return 0;
+}

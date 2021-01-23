@@ -1,0 +1,19 @@
+int main() {
+	return 0;
+	;
+	int x = 1;
+	x = 5;
+	string y = "a";
+	while (x > 0) {
+		printString(y);
+		x--;
+	}
+	{
+		2 + f();
+	}
+	printInt(42);
+}
+
+int f() {
+	return 5;
+}

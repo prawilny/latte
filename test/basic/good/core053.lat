@@ -1,0 +1,12 @@
+int main() {
+	if (true || doNotCall(true))
+		printString("OK");
+	if (false && doNotCall(true))
+		printString("BAD");
+	return 0;
+}
+
+boolean doNotCall(boolean b) {
+	printString("BAD");
+	return b;
+}

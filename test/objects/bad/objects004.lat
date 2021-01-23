@@ -1,0 +1,13 @@
+class Class {
+	int n;
+
+	void print() { printInt(n); }
+}
+
+int main() {
+	Class c = new Class;
+	c.print(1);
+	c.add();
+	int a = c.print();
+	return 0;
+}

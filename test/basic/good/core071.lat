@@ -1,0 +1,9 @@
+# https://beginnersbook.com/2019/08/java-program-to-find-quotient-and-remainder/
+int main() {
+    int num1 = 15, num2 = 2;
+    int quotient = num1 / num2;
+    int remainder = num1 % num2;
+    printInt(quotient);
+    printInt(remainder);
+    return 0;
+}

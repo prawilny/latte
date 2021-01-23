@@ -1,0 +1,9 @@
+int main() {
+	concat();
+	return 0;
+}
+
+void concat() {
+
+}
+

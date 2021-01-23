@@ -1,0 +1,26 @@
+# https://beginnersbook.com/2014/01/java-program-to-check-prime-number/
+int main()
+   {
+	int temp;
+	boolean isPrime=true;
+	int num=6;
+
+    boolean break = false;
+    int i = 2;
+	while(i<=num/2 && !break)
+	{
+           temp=num%i;
+	   if(temp==0)
+	   {
+	      isPrime=false;
+	      break = true;
+	   }
+       i++;
+	}
+	//If isPrime is true then the number is prime else not
+	if(isPrime)
+	   printString("prime");
+	else
+	   printString("not prime");
+    return 0;
+   }

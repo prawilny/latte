@@ -1,0 +1,8 @@
+int main() {
+	string y;
+	x++;
+	x--;
+	y++;
+	y--;
+	return 0;
+}

@@ -1,0 +1,21 @@
+# https://beginnersbook.com/2019/02/java-program-to-break-integer-into-digits/
+int main()
+{
+    int num, temp, digit, count = 0;
+    num = 987654321;
+    temp = num;
+
+    while(num > 0)
+    {
+        num = num / 10;
+        count++;
+    }
+    while(temp > 0)
+    {
+        digit = temp % 10;
+        printInt(digit);
+        temp = temp / 10;
+        count--;
+    }
+    return 0;
+}

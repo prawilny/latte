@@ -1,0 +1,19 @@
+class Person {
+	int age;
+	Person father;
+}
+
+int main() {
+	Person p = new Person;
+	if (p.father != (Person)null)
+		printString("ERROR");
+	else
+		printString("OK");
+
+	Person p2 = (Person)null;
+	if (p2 == (Person)null)
+		printString("Null");
+	else
+		printString("Not null");
+	return 0;
+}

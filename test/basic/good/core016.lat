@@ -1,0 +1,5 @@
+int main() {
+	string x = "a
+			sdf";
+	return 0;
+}

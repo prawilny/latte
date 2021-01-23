@@ -1,0 +1,22 @@
+class counter {
+	int n;
+}
+
+class fastCounter extends counter {
+	int m;
+
+	int add() {
+		m++;
+		return m;
+	}
+}
+
+int main() {
+	counter c = new counter;
+	fastCounter fc = new fastCounter;
+	printInt(c.n);
+	printInt(fc.m);
+	(counter)null;
+	(fastCounter)null;
+	return 0;
+}

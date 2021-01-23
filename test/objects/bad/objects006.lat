@@ -1,0 +1,4 @@
+int main() {
+	self;
+	return 0;
+}

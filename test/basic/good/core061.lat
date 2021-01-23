@@ -1,0 +1,30 @@
+int main() {
+	int x = 1;
+	{
+		int x = 2;
+		printInt(x);
+	}
+	printInt(x);
+
+	boolean b = true;
+	{
+		boolean b = false;
+		printBool(b);
+	}
+	printBool(b);
+
+	string s = "a";
+	{
+		string s = "b";
+		printString(s);
+	}
+	printString(s);
+	return 0;
+}
+
+void printBool(boolean b){
+if (b)
+			printInt(1);
+		else
+			printInt(0);
+}

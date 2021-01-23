@@ -1,0 +1,10 @@
+int main() {
+	/* comment */
+	// comment
+	# comment
+	// 'asd'
+	"asdasd";
+	"as	asd";
+	"123 456";
+	return 0;
+}

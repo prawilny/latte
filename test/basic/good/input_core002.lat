@@ -1,0 +1,8 @@
+int main() {
+	int x;
+	while (x != 42) {
+		x = readInt();
+	}
+	printString("OK");
+	return 0;
+}

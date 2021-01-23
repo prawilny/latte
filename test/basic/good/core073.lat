@@ -1,0 +1,36 @@
+# https://beginnersbook.com/2014/01/java-program-to-display-first-n-or-first-100-prime-numbers/
+int main()
+{
+    int n;
+    int status = 1;
+    int num = 3;
+    n = 15;
+    if (n >= 1)
+    {
+        printInt(2);
+    }
+
+    int i = 2;
+    while (i <=n)
+    {
+        boolean break = false;
+        int j = 2;
+        while (j*j <= num)
+        {
+            if ( num%j == 0 && !break)
+            {
+                status = 0;
+                break = true;
+            }
+            j++;
+        }
+        if ( status != 0 )
+        {
+            printInt(num);
+            i++;
+        }
+        status = 1;
+        num++;
+    }
+    return 0;
+}

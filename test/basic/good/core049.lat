@@ -1,0 +1,9 @@
+int main () {
+	int x = 0;
+	while (x < 3) {
+		printInt(x);
+		x = x + 1;
+	}
+	printInt(x);
+	return 0;
+}

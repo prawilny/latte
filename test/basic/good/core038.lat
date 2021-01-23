@@ -1,0 +1,14 @@
+int main() {
+	int x = 1;
+	if (x < 3)
+		printInt(2);
+	else
+		printInt(3);
+
+	boolean y = true;
+	if (y == true)
+		printInt(1);
+	else
+		printInt(0);
+	return 0;
+}

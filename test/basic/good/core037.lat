@@ -1,0 +1,15 @@
+int main() {
+	boolean x = true;
+	if (!x) {
+		x = false;	
+	}
+	else {
+		if (x && true) {
+			printInt(42);
+		}
+		else {
+			printInt(0);
+		}
+	}
+	return 0;
+}

@@ -1,0 +1,11 @@
+int main() {
+	string s1 = "a";
+	string s2 = "b";
+	string s3 = s1 + s2;
+	printString(s3);
+	if (s1 == s2)
+		printString("rowne");
+	else
+		printString("nie rowne");
+	return 0;
+}

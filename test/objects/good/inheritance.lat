@@ -1,0 +1,27 @@
+class o1 {
+	int i;
+	int k;
+
+	void print() { printInt(k); }
+}
+
+class o2 extends o1 {
+	string j;
+}
+
+int main() {
+	printInt(1);
+	o2 o = new o2;
+	printInt(2);
+	o.j = "cos";
+	printString("2,5");
+	printString(o.j);
+	printInt(3);
+	o.i = 42;
+	printString("3,5");
+	printInt(o.i);
+	printInt(4);
+	o.print();
+	printInt(5);
+	return 0;
+}

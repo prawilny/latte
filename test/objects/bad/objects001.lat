@@ -1,0 +1,14 @@
+class o1 {
+
+}
+
+class o2 {
+
+}
+
+int main() {
+	o1 a = new o1;
+	o2 b;
+	b = a;
+	return 0;
+}

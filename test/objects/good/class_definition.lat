@@ -1,0 +1,40 @@
+class Person {
+	int age;
+	string name;
+	boolean healthy;
+	Person father;
+}
+
+int main() {
+	Person p1 = new Person;
+	Person p2 = new Person;
+	p1.age = 46;
+	p1.name = "Jan";
+	p2.age = 18;
+	p2.name = "Kacper";
+	p2.father = p1;
+	printInt(p1.age);
+	printString(p1.name);
+	printInt(p2.age);
+	printString(p2.name);
+	printInt(p2.father.age);
+	p1.father = (Person)null;
+	if (p1.father == (Person)null)
+		printString("OK null");
+	else
+		printString("ERROR null");
+	#############
+	Person son = getSon(p1);
+	printInt(son.age);
+	printString(son.name);
+	printInt(son.father.age);
+	return 0;
+}
+
+Person getSon(Person parent) {
+	Person son = new Person;
+	son.age = 1;
+	son.name = "Kazik";
+	son.father = parent;
+	return son;
+}

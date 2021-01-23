@@ -1,0 +1,12 @@
+int main() {
+	int x;
+	string s;
+	boolean b;
+	printInt(x);
+	printString(s);
+	if (b)
+		printString("true");
+	else
+		printString("false");
+	return 0;
+}

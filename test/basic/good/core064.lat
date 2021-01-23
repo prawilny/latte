@@ -1,0 +1,12 @@
+int main() {
+	f(0);
+	return 0;
+}
+
+void f(int a) {
+	int n;
+	n = a;
+	a++;
+	printInt(a);
+	printInt(n);
+}

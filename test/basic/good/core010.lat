@@ -1,0 +1,14 @@
+int main() {
+	int i = 0;
+	{
+		i = 42;
+		int i = 7;
+		int x = 1;
+		while (x > 0){
+			i = 5;
+			int i = 123;
+			x--;
+		}		
+	}
+	return 0;
+}

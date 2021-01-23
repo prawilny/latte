@@ -1,0 +1,15 @@
+# https://www.programiz.com/java-programming/examples/power-number-recursion
+int main() {
+        int base = 3, powerRaised = 4;
+        int result = power(base, powerRaised);
+
+        printInt(result);
+        return 0;
+    }
+
+    int power(int base, int powerRaised) {
+        if (powerRaised != 0)
+            return (base * power(base, powerRaised - 1));
+        else
+            return 1;
+    }
