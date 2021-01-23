@@ -6,22 +6,28 @@ Cudza własność intelektualna
 
 Uwagi do języka
 ========================================
-Dla uniknięcia niejednoznaczności "do którego 'if' wiąże ten 'else'"
-gramatyka języka w łańcucach ifów o pojedynczych instrukcjach wymusza taką samą liczbę 'if' i 'else':
+Dla uniknięcia niejednoznaczności "do którego 'if' wiąże ten 'else'" gramatyka języka
+w łańcucach ifów o pojedynczych instrukcjach wymusza taką samą liczbę 'if' i 'else':
 właściwą instrukcją jest `if (true) if (false) ; else ; else ;`,
 niewłaściwą zaś: `if (true) if (false) ; else ;`.
 
-Dla uproszczenia kodu ograniczyłem casty (przy zachowaniu kompatybilności z publicznuymi testami):
+Dla uproszczenia kodu ograniczyłem casty (przy zachowaniu kompatybilności z publicznymi testami):
 ")null" stanowi pojedynczy token, więc nie można zrobić `( class ) null`.
 
 Jedyne dozwolone jawne rzutowania są na null: `( klasa )null`.
 Wszystkie inne rzutowania robione są niejawnie.
 
+Wszystkie metody obiektów są wirtualne (nie ma możliwości zdefiniowania metody
+nienadpisywalnej w podklasach)
+
 Uwagi do kompilatora
 ========================================
-Kompilator obsługuje podstawową wersję języka latte.
-Kod wyjściowy jest kodem maszyny stosowej - liczę, że punkty za alokację rejestrów
-będą zdobywalne w terminie rozszerzeń.
+Kod wyjściowy (w x86_64) jest kodem maszyny stosowej.
+
+Kompilator obsługuje język latte z następującymi rozszerzeniami:
+    - structy,
+    - obiekty,
+    - metody wirtualne.
 
 
 Kompilacja
@@ -32,7 +38,8 @@ W systemie bez toolchainu rusta należy wykonać w katalogu projektu polecenie:
     make
 Zainstaluje ono (`make`) rusta w lokalnym katalogu
 
-UWAGA: w przypadku instalacji rusta w lokalnym katalogu rozmiar katalogu po kompilacji programu osiąga rozmiar 1-1.5 GB
+UWAGA: w przypadku instalacji rusta w lokalnym katalogu rozmiar katalogu
+po kompilacji programu osiąga rozmiar 1-1.5 GB
 
 
 Uruchamianie
