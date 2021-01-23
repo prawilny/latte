@@ -62,6 +62,9 @@ void * __new(const i64 bytes, const void * vtable) {
 }
 
 void __drop(void * ptr) {
+    if (ptr == NULL) {
+        return;
+    }
     i64 * counter = (i64 *) ptr;
     i64 * bitset = (i64 *) ptr + 8;
     // void * vtable = ptr + 16;
