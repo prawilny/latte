@@ -46,7 +46,7 @@ Lista scalaj(Lista lj, int ljLength, Lista ld, int ldLength){
 		if (w2 == ldLength)	wart2 = -1;
 		else wart2 = pokazWartosc(ld, w2);
 		if (wart2 > wart){
-			w2++;		
+			w2++;
 			ladujWartosc(start, ws, wart2);
 		} else{
 			w1++;
@@ -86,19 +86,19 @@ Lista generujTablicoListeDoSortowaniaMerge13co7Malejaco(int dlugoscListy, boolea
 	start.wartosc = 0;
 	if (pisz) printInt(start.wartosc);
 	while (wsk != dlugoscListy){
-		start.poprzedni = null;
+		start.poprzedni = (Lista)null;
 		a.nastepny = new Lista;
 		n = a;
 		a = a.nastepny;
 		if (wsk % 5 == 3) a.wartosc = dlugoscListy - wsk / 2;
 		else a.wartosc = wsk % 13;
-		
+
 		a.poprzedni = n;
 		//a.wartosc = wsk;
 		if (pisz) printInt(a.wartosc);
 		wsk++;
 	}
-	a.nastepny = null;
+	a.nastepny = (Lista)null;
 	if (pisz) printString("wygenerowal liste 2kierunkowa dziwna dlugosci :");
 	if (pisz) printInt(dlugoscListy);
 	if (pisz) printString("__________");
@@ -121,7 +121,8 @@ Lista przejdzSieNaKoniecIWypisuj(Lista start, int dl){
 }
 
 class Lista{
-	Lista poprzedni, nastepny;
+	Lista poprzedni;
+	Lista nastepny;
 	int wartosc;
 }
 
