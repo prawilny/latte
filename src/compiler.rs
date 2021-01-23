@@ -76,6 +76,7 @@ static ASM_ADDR_SIZE_DIR: &str = ".quad";
 // TODO: clippy może wskazać głupie błędy
 // TODO: poprawki czyszczenia stosu (jest 1 pop() dla dowolnego var: ussize chyba)
 // TODO: porównywanie stringów?
+// TODO: while vs do while
 
 type VOffsets = Vec<ast::Ident>;
 type FOffsets = Vec<(ast::Ident, ast::Ident)>;
@@ -285,7 +286,13 @@ pub fn compile(cfdefs: &(Vec<ast::Node<ast::ClassDef>>, Vec<ast::Node<ast::FunDe
         let (class_name_node, _, _, class_methods) = cdef.data();
 
         for fdef in class_methods {
-            compile_fn(fdef, &cenv, &mut labels, &mut output, &Some(class_name_node.data().to_string()));
+            compile_fn(
+                fdef,
+                &cenv,
+                &mut labels,
+                &mut output,
+                &Some(class_name_node.data().to_string()),
+            );
         }
     }
 
@@ -319,7 +326,9 @@ fn compile_fn(
     let mut arg_names: Vec<ast::Ident> = arg_nodes.iter().map(|arg_node| arg_node.data().1.data().clone()).collect();
     if let Some(class_name) = class_name_option {
         arg_names.insert(0, SELF_IDENT.to_string()); // this
-        output.text.push(format!("{}:", fn_label(Some(class_name.to_string()), ident_node.data())));
+        output
+            .text
+            .push(format!("{}:", fn_label(Some(class_name.to_string()), ident_node.data())));
     } else {
         output.text.push(format!("{}:", fn_label(None, ident_node.data())));
     }
@@ -389,7 +398,9 @@ fn compile_var_ptr(
 
         output.text.push(format!("{} {}, {}", OP_MOV, REG_AUX, REG_BASE));
         output.text.push(format!("{} {}, {}", OP_SUB, REG_AUX, self_offset));
-        output.text.push(format!("{} {}, {} ptr [{}]", OP_MOV, REG_MAIN, MEM_WORD_SIZE, REG_AUX));
+        output
+            .text
+            .push(format!("{} {}, {} ptr [{}]", OP_MOV, REG_MAIN, MEM_WORD_SIZE, REG_AUX));
         output.text.push(format!("{} {}, {}", OP_ADD, REG_MAIN, field_offset));
         push_wrapper(REG_MAIN, None, vstack, output);
     }
@@ -419,9 +430,7 @@ fn compile_stmt(
 
             compile_var_ptr(ident_node.data(), vstack, cenv, output, class_name_option);
             pop_wrapper(REG_MAIN, vstack, output);
-            output
-                .text
-                .push(format!("{} {} ptr [{}]", op_code, MEM_WORD_SIZE, REG_MAIN));
+            output.text.push(format!("{} {} ptr [{}]", op_code, MEM_WORD_SIZE, REG_MAIN));
         }
         ast::Stmt::VRet => {
             vstack_exit_fn(vstack, output);
@@ -769,7 +778,9 @@ fn compile_expr_ptr(
                     .text
                     .push(format!("{} {}, {} ptr [{}]", OP_MOV, REG_AUX, MEM_WORD_SIZE, ARG_REGS[0]));
                 output.text.push(format!("{} {}, {}", OP_ADD, REG_AUX, method_offset));
-                output.text.push(format!("{} {}, {} ptr [{}]", OP_MOV, REG_MAIN, MEM_WORD_SIZE, REG_AUX));
+                output
+                    .text
+                    .push(format!("{} {}, {} ptr [{}]", OP_MOV, REG_MAIN, MEM_WORD_SIZE, REG_AUX));
                 output.text.push(format!("{} {}", OP_CALL, REG_MAIN));
 
                 if stack_args_count > 0 {

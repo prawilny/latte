@@ -49,8 +49,7 @@ fn cmp_types(expected: &ast::Type, actual: &ast::Type, ienv: &IEnv) -> bool {
             cmp_prims(act_prim, exp_prim, ienv) && {
                 // odwrotne porównanie - możemy zwrócić podklasę
                 if exp_arg_prims.len() == act_arg_prims.len() {
-                    let cmps: Vec<bool> = exp_arg_prims
-                        [1..] // obcinamy self
+                    let cmps: Vec<bool> = exp_arg_prims[1..] // obcinamy self
                         .iter()
                         .zip(act_arg_prims.iter())
                         .map(|(exp_arg_prim, act_arg_prim)| {
