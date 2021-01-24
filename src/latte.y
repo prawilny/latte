@@ -199,13 +199,13 @@ Expr4 -> Result<Node<Expr>, ()>:
       }
     ;
 Expr5 -> Result<Node<Expr>, ()>:
-      '-' Expr6 {
+      '-' Expr5 {
           let sign = $1.map_err(|_| ())?;
           let v = $2.map_err(|_| ())?;
           Ok(Node::new(Span::new(sign.span().start(), v.span().end()), Expr::Neg(Box::new(v))))
       }
     |
-      '!' Expr6 {
+      '!' Expr5 {
           let sign = $1.map_err(|_| ())?;
           let v = $2.map_err(|_| ())?;
           Ok(Node::new(Span::new(sign.span().start(), v.span().end()), Expr::Not(Box::new(v))))
