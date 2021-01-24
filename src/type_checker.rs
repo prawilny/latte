@@ -3,14 +3,17 @@
 // TODO: priorytet '.'
 // TODO: sprawdzenie gramatyki
 // TODO: sprawdzenie uwagi o castach w README
-// TODO: czy type_checker musi przekazywać rzeczy do kompilatora? (informacje o dziedziczeniu/klasach zmiennych)
-//       jeśli tak - pewnie by należało wydzielić moduł na to
 // TODO: wypełnienie typów nowych wyrażeń
 // TODO: wypełnianie typów wyrażeń w instrukcjach
 // TODO: zmiana Class("C") na cokolwiek innego
 // TODO: czy obsługa self jest poprawna?
 // TODO: któryś unwrap() się wywala
 // TODO: README: null tylko typowany
+// TODO: wykryć cykliczne dziedziczenie
+// TODO: wykryć dziedziczenie po nieistniejącym
+// TODO: upewnić się, że wszystkie wyrażenia mają ustawione primy
+// TODO: set_prim wszystkim
+// TODO: czy typ zmiennym dać? chyba jest już przechowywany w VEnv...
 
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
@@ -322,7 +325,7 @@ fn check_call(
 }
 
 fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, cfienv: &CFIEnv, lexer: &dyn Lexer<u32>) -> Result<ast::Prim, String> {
-    let expr_type = match expr.data() {
+    let expr_prim = match expr.data() {
         ast::Expr::Dot(expr_node, ident_node) => match check_expr(expr_node, venv, cfienv, lexer)? {
             ast::Prim::Class(class_name) => {
                 let members = match cfienv.0.get(&class_name) {
@@ -498,8 +501,8 @@ fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, cfienv: &CFIEnv, lexer: 
         }
         ast::Expr::New(ident_node) | ast::Expr::Null(ident_node) => ast::Prim::Class(ident_node.data().clone()),
     };
-    expr.set_prim(&expr_type);
-    Ok(expr_type)
+    expr.set_prim(&expr_prim);
+    Ok(expr_prim)
 }
 
 fn check_block(
@@ -549,7 +552,7 @@ fn check_stmt(
                     return Err(type_mismatch_msg(decl_prim.clone(), &var_prim, lexer, item_node.span()));
                 }
                 if let Some(_) = venv_get_in_scope(venv, &var_name) {
-                    return Err(wrap_error_msg(lexer, item_node.span(), "variable redeclared within block"));
+                    return Err(wrap_error_msg(lexer, item_node.span(), "variable redeclared within a block"));
                 }
                 venv_insert(venv, var_name, decl_prim.clone());
             }
