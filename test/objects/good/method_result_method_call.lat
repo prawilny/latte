@@ -1,0 +1,18 @@
+class C {
+    D foo() {
+        D d = new D;
+        return d;
+    }
+}
+
+class D {
+    void bar() {
+        printInt(21);
+    }
+}
+
+int main() {
+    C c = new C;
+    c.foo().bar();
+    return 0;
+}
