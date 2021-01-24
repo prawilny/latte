@@ -60,7 +60,7 @@ fn cmp_types(expected: &ast::Type, actual: &ast::Type, ienv: &IEnv) -> bool {
                         .iter()
                         .zip(act_arg_prims[1..].iter()) // obcinamy self
                         .map(|(exp_arg_prim, act_arg_prim)| {
-                            return cmp_prims(exp_arg_prim, act_arg_prim, ienv);
+                            cmp_prims(exp_arg_prim, act_arg_prim, ienv)
                         })
                         .collect();
                     cmps.iter().all(|b| *b)
@@ -95,11 +95,11 @@ fn venv_insert(venv: &mut VEnv, key: ast::Ident, val: ast::Prim) -> Option<ast::
     prev
 }
 
-fn venv_enter_scope(venv: &mut VEnv) -> () {
+fn venv_enter_scope(venv: &mut VEnv) {
     venv.push(HashMap::new());
 }
 
-fn venv_exit_scope(venv: &mut VEnv) -> () {
+fn venv_exit_scope(venv: &mut VEnv) {
     venv.pop();
 }
 
@@ -196,7 +196,7 @@ pub fn check_types(
             check_fn(
                 method_node,
                 &mut class_venv.clone(),
-                &mut (cfienv.0.clone(), cfienv.1.clone(), cfienv.2.clone()),
+                &cfienv,
                 lexer,
             )?;
         }
@@ -533,7 +533,7 @@ fn check_stmt(
     match stmt.data() {
         ast::Stmt::Empty => Ok(false),
         ast::Stmt::Expr(expr_node) => {
-            check_expr(&expr_node, &mut venv, cfienv, lexer)?;
+            check_expr(&expr_node, &venv, cfienv, lexer)?;
             Ok(false)
         }
         ast::Stmt::Decl(prim_node, item_nodes) => {
@@ -545,13 +545,13 @@ fn check_stmt(
                 let (var_name, var_prim) = match item_node.data() {
                     ast::Item::NoInit(ident_node) => (ident_node.data().clone(), decl_prim.clone()),
                     ast::Item::Init(ident_node, expr_node) => {
-                        (ident_node.data().clone(), check_expr(&expr_node, &mut venv, cfienv, lexer)?)
+                        (ident_node.data().clone(), check_expr(&expr_node, &venv, cfienv, lexer)?)
                     }
                 };
                 if !cmp_prims(&decl_prim, &var_prim, &cfienv.2) {
                     return Err(type_mismatch_msg(decl_prim.clone(), &var_prim, lexer, item_node.span()));
                 }
-                if let Some(_) = venv_get_in_scope(venv, &var_name) {
+                if venv_get_in_scope(venv, &var_name).is_some() {
                     return Err(wrap_error_msg(lexer, item_node.span(), "variable redeclared within a block"));
                 }
                 venv_insert(venv, var_name, decl_prim.clone());
@@ -559,7 +559,7 @@ fn check_stmt(
             Ok(false)
         }
         ast::Stmt::Asgn(lhs_node, expr_node) => {
-            let expr_prim = check_expr(&expr_node, &mut venv, cfienv, lexer)?;
+            let expr_prim = check_expr(&expr_node, &venv, cfienv, lexer)?;
             match lhs_node.data() {
                 ast::Expr::Var(ident_node) => match venv_get(venv, ident_node.data()) {
                     Some(var_prim) => {
@@ -611,7 +611,7 @@ fn check_stmt(
                     return Err(wrap_error_msg(
                         lexer,
                         lhs_node.span(),
-                        &format!("left side of = is not a variable nor a field"),
+                        "left side of = is not a variable nor a field",
                     ))
                 }
             }
@@ -625,7 +625,7 @@ fn check_stmt(
             }
         }
         ast::Stmt::Ret(expr_node) => {
-            let expr_prim = check_expr(&expr_node, &mut venv, cfienv, lexer)?;
+            let expr_prim = check_expr(&expr_node, &venv, cfienv, lexer)?;
             if !cmp_prims(fn_prim, &expr_prim, &cfienv.2) {
                 Err(wrong_return_msg(fn_prim.clone(), &expr_prim, lexer, stmt.span()))
             } else {
@@ -641,7 +641,7 @@ fn check_stmt(
         }
         ast::Stmt::Block(block_node) => check_block(block_node.data(), fn_prim, &mut venv, cfienv, lexer),
         ast::Stmt::If(expr_node, stmt_node) | ast::Stmt::While(expr_node, stmt_node) => {
-            let expr_prim = check_expr(&expr_node, &mut venv, cfienv, lexer)?;
+            let expr_prim = check_expr(&expr_node, &venv, cfienv, lexer)?;
             if let ast::Prim::Bool = expr_prim {
                 venv_enter_scope(venv);
                 let stmt_returns = check_stmt(&stmt_node, fn_prim, &mut venv, cfienv, lexer)?;
@@ -656,7 +656,7 @@ fn check_stmt(
             }
         }
         ast::Stmt::IfElse(expr_node, stmt_true_node, stmt_false_node) => {
-            let expr_prim = check_expr(&expr_node, &mut venv, cfienv, lexer)?;
+            let expr_prim = check_expr(&expr_node, &venv, cfienv, lexer)?;
             if let ast::Prim::Bool = expr_prim {
                 venv_enter_scope(venv);
                 let stmt_true_returns = check_stmt(&stmt_true_node, fn_prim, &mut venv, cfienv, lexer)?;
@@ -681,7 +681,7 @@ fn check_fn(fdef: &ast::Node<ast::FunDef>, venv: &mut VEnv, cfienv: &CFIEnv, lex
     for arg_node in arg_nodes {
         let (arg_prim_node, arg_ident_node) = arg_node.data();
         let (prim, ident) = (arg_prim_node.data(), arg_ident_node.data());
-        if let Some(_) = venv_insert(venv, ident.clone(), prim.clone()) {
+        if venv_insert(venv, ident.clone(), prim.clone()).is_some() {
             return Err(wrap_error_msg(lexer, fdef.span(), "argument name repeated"));
         }
     }
@@ -689,12 +689,8 @@ fn check_fn(fdef: &ast::Node<ast::FunDef>, venv: &mut VEnv, cfienv: &CFIEnv, lex
     let fn_prim = prim_node.data();
 
     let fn_always_returns = check_block(block_node.data(), fn_prim, venv, cfienv, lexer)?;
-    if let ast::Prim::Void = fn_prim {
-        ()
-    } else {
-        if !fn_always_returns {
-            return Err(wrap_error_msg(lexer, fdef.span(), "nonvoid function does not return"));
-        }
+    if ast::Prim::Void != *fn_prim && !fn_always_returns {
+        return Err(wrap_error_msg(lexer, fdef.span(), "nonvoid function does not return"));
     }
 
     Ok(())
@@ -712,7 +708,7 @@ fn register_superclasses_in_env(
         None => return Err(wrap_error_msg(lexer, ident_node.span(), "nonexistent class")),
     };
 
-    if let Some(_) = ienv.get(ident) {
+    if ienv.get(ident).is_some() {
         return Ok(());
     }
 
@@ -741,7 +737,7 @@ fn register_class_in_env(
     let cdef = cdefs.get(ident_node.data()).unwrap(); // unwrap, bo register_superclasses już sprawdziło
     let (self_ident_node, parent_ident_node_option, field_nodes, method_nodes) = cdef.data();
 
-    if let Some(_) = cenv.get(self_ident_node.data()) {
+    if cenv.get(self_ident_node.data()).is_some() {
         return Ok(());
     }
 
@@ -755,7 +751,7 @@ fn register_class_in_env(
 
     for field_node in field_nodes {
         let (prim_node, ident_node) = field_node.data();
-        if let Some(_) = members.insert(ident_node.data().to_string(), ast::Type::Var(prim_node.data().clone())) {
+        if members.insert(ident_node.data().to_string(), ast::Type::Var(prim_node.data().clone())).is_some() {
             return Err(wrap_error_msg(lexer, ident_node.span(), "field name not unique"));
         }
     }
@@ -828,7 +824,7 @@ fn fn_env(fdefs: &Vec<ast::Node<ast::FunDef>>, lexer: &dyn Lexer<u32>) -> Result
 
         let arg_types = arg_types(arg_nodes, lexer)?;
         let (fn_type, fn_name) = (prim_node.data(), ident_node.data());
-        if let Some(_) = fenv.insert(fn_name.clone(), (fn_type.clone(), arg_types)) {
+        if fenv.insert(fn_name.clone(), (fn_type.clone(), arg_types)).is_some() {
             return Err(wrap_error_msg(lexer, ident_node.span(), "function name not unique"));
         }
     }
@@ -837,7 +833,7 @@ fn fn_env(fdefs: &Vec<ast::Node<ast::FunDef>>, lexer: &dyn Lexer<u32>) -> Result
         None => return Err("no main()".to_string()),
         Some((prim, args)) => {
             if let ast::Prim::Int = prim {
-                if args.len() != 0 {
+                if !args.is_empty() {
                     return Err("main() has arguments".to_string());
                 }
             } else {

@@ -242,12 +242,12 @@ Expr6 -> Result<Node<Expr>, ()>:
       'SELF' {
         let s = $1.map_err(|_| ())?;
         let self_node = Node::new(s.span(), SELF_IDENT.to_string());
-        Ok(Node::new(s.span().clone(), Expr::Var(self_node)))
+        Ok(Node::new(s.span(), Expr::Var(self_node)))
       }
     |
       Ident {
         let v = $1.map_err(|_| ())?;
-        Ok(Node::new(v.span().clone(), Expr::Var(v)))
+        Ok(Node::new(*v.span(), Expr::Var(v)))
       }
     |
       'STRING' {
@@ -349,7 +349,7 @@ Items -> Result<Vec<Node<Item>>, ()>:
 Item -> Result<Node<Item>, ()>:
       Ident {
         let ident = $1.map_err(|_| ())?;
-        Ok(Node::new(ident.span().clone(), Item::NoInit(ident)))
+        Ok(Node::new(*ident.span(), Item::NoInit(ident)))
       }
     |
       Ident '=' Expr {
@@ -429,12 +429,12 @@ ClosedStmt -> Result<Node<Stmt>, ()>: SimpleStmt { $1 }
 SimpleStmt -> Result<Node<Stmt>, ()>:
       ';' {
         let semi = $1.map_err(|_| ())?;
-        Ok(Node::new(semi.span().clone(), Stmt::Empty))
+        Ok(Node::new(semi.span(), Stmt::Empty))
       }
     |
       Block {
         let block = $1.map_err(|_| ())?;
-        Ok(Node::new(block.span().clone(), Stmt::Block(block)))
+        Ok(Node::new(*block.span(), Stmt::Block(block)))
       }
     |
       Prim Items ';' {
@@ -450,12 +450,12 @@ SimpleStmt -> Result<Node<Stmt>, ()>:
     |
       Ident '++' ';' {
         let ident = $1.map_err(|_| ())?;
-        Ok(Node::new(ident.span().clone(), Stmt::Incr(ident)))
+        Ok(Node::new(*ident.span(), Stmt::Incr(ident)))
       }
     |
       Ident '--' ';' {
         let ident = $1.map_err(|_| ())?;
-        Ok(Node::new(ident.span().clone(), Stmt::Decr(ident)))
+        Ok(Node::new(*ident.span(), Stmt::Decr(ident)))
       }
     |
       'RETURN' ';' {

@@ -97,10 +97,7 @@ struct Output {
 }
 
 fn push_wrapper(val: &str, name: Option<&str>, vstack: &mut VStack, output: &mut Output) {
-    let stack_name = match name {
-        Some(s) => s,
-        None => ".tmp",
-    };
+    let stack_name = name.unwrap_or(".tmp");
     output.text.push(format!("{} {}", OP_PUSH, val));
     vstack.0.push(stack_name.to_string());
 }
@@ -219,7 +216,7 @@ fn register_class_in_env(ident: &ast::Ident, cenv: &mut CEnv, cdefs: &HashMap<as
     let (self_ident_node, parent_ident_node_option, field_nodes, method_nodes) = cdef.data();
     let self_ident = self_ident_node.data();
 
-    if let Some(_) = cenv.get(self_ident) {
+    if cenv.get(self_ident).is_some() {
         return;
     }
 
@@ -234,7 +231,7 @@ fn register_class_in_env(ident: &ast::Ident, cenv: &mut CEnv, cdefs: &HashMap<as
     for field_node in field_nodes {
         let field_ident = field_node.data().1.data();
 
-        if let None = voffsets.iter().position(|vname| vname == field_ident) {
+        if voffsets.iter().position(|vname| vname == field_ident).is_none() {
             voffsets.push(field_ident.to_string());
         }
     }
@@ -265,10 +262,10 @@ fn class_env(cdefs: &Vec<ast::Node<ast::ClassDef>>) -> CEnv {
 }
 
 fn print_wrapper(s: &str) {
-    if let None = s.find(|c: char| c == '.' || c == ':') {
-        println!("    {}", s);
-    } else {
+    if s.find(|c: char| c == '.' || c == ':').is_some() {
         println!("{}", s);
+    } else {
+        println!("    {}", s);
     }
 }
 
