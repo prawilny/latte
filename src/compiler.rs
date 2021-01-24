@@ -689,8 +689,13 @@ fn compile_expr_ptr(
             output.text.push(format!("{} {}, {}", OP_CMP, REG_MAIN, lazy_value));
             output.text.push(format!("{} {}", JMP_EQ, or_and_label_after));
 
-            // TODO: fix
+            // hack:
+            // jeśli po porównaniu sterowanie przeskoczyło do `or_and_label_after`,
+            // niepotrzebnie zmniejszyliśmy VStack,
+            // *ale* obliczenie `compile_expr_val(&expr2, ...) ponownie zwiększy go o 1.
+            // Po wyjściu z funkcji zawartość VStack zgadza się z zawartością stosu procesora
             vstack_shrink_stack(vstack, 1, output);
+
             compile_expr_val(&expr2, vstack, cenv, labels, output, class_name_option);
             output.text.push(format!("{}:", or_and_label_after));
         }
