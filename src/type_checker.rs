@@ -509,7 +509,7 @@ fn check_block(
 
     venv_enter_scope(venv);
     for stmt in stmts {
-        block_returns = block_returns || check_stmt(&stmt, fn_prim, &mut venv, cfienv, lexer)?;
+        block_returns = check_stmt(&stmt, fn_prim, &mut venv, cfienv, lexer)? || block_returns;
     }
     venv_exit_scope(venv);
 
