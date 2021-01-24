@@ -59,9 +59,7 @@ fn cmp_types(expected: &ast::Type, actual: &ast::Type, ienv: &IEnv) -> bool {
                     let cmps: Vec<bool> = exp_arg_prims[1..] // obcinamy self
                         .iter()
                         .zip(act_arg_prims[1..].iter()) // obcinamy self
-                        .map(|(exp_arg_prim, act_arg_prim)| {
-                            cmp_prims(exp_arg_prim, act_arg_prim, ienv)
-                        })
+                        .map(|(exp_arg_prim, act_arg_prim)| cmp_prims(exp_arg_prim, act_arg_prim, ienv))
                         .collect();
                     cmps.iter().all(|b| *b)
                 } else {
@@ -193,12 +191,7 @@ pub fn check_types(
         let class_venv = method_venv(class_name_node, &cfienv, lexer)?;
 
         for method_node in method_nodes {
-            check_fn(
-                method_node,
-                &mut class_venv.clone(),
-                &cfienv,
-                lexer,
-            )?;
+            check_fn(method_node, &mut class_venv.clone(), &cfienv, lexer)?;
         }
     }
 
@@ -751,7 +744,10 @@ fn register_class_in_env(
 
     for field_node in field_nodes {
         let (prim_node, ident_node) = field_node.data();
-        if members.insert(ident_node.data().to_string(), ast::Type::Var(prim_node.data().clone())).is_some() {
+        if members
+            .insert(ident_node.data().to_string(), ast::Type::Var(prim_node.data().clone()))
+            .is_some()
+        {
             return Err(wrap_error_msg(lexer, ident_node.span(), "field name not unique"));
         }
     }

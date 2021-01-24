@@ -515,6 +515,7 @@ impl<N: Debug + Clone> Node<N> {
     }
 
     pub fn get_prim(&self) -> Prim {
+        eprintln!("{:?}", self);
         self.static_prim.borrow().clone().unwrap()
     }
 }
