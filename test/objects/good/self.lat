@@ -1,0 +1,24 @@
+class C {
+    D d;
+
+    void foobar() {
+        d.foo(self);
+    }
+
+    void bar() {
+        printString("GOOD");
+    }
+}
+
+class D {
+    void foo(C c) {
+        c.bar();
+    }
+}
+
+int main() {
+    C c = new C;
+    c.d = new D;
+
+    return 0;
+}
