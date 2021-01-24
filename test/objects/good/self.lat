@@ -20,5 +20,7 @@ int main() {
     C c = new C;
     c.d = new D;
 
+    c.foobar();
+
     return 0;
 }
