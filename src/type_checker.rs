@@ -692,6 +692,7 @@ fn check_fn(fdef: &ast::Node<ast::FunDef>, venv: &mut VEnv, cfienv: &CFIEnv, lex
 fn register_superclasses_in_env(
     ident_node: &ast::Node<ast::Ident>,
     ienv: &mut IEnv,
+    i_registered: &mut HashSet<ast::Ident>,
     cdefs: &HashMap<ast::Ident, ast::Node<ast::ClassDef>>,
     lexer: &dyn Lexer<u32>,
 ) -> Result<(), String> {
@@ -705,10 +706,14 @@ fn register_superclasses_in_env(
         return Ok(());
     }
 
+    if !i_registered.insert(ident.clone()) {
+        return Err(wrap_error_msg(lexer, ident_node.span(), "cyclic inheritance"));
+    }
+
     let superclasses = match parent_ident_node_option {
         Some(parent_ident_node) => {
             let parent_ident = parent_ident_node.data();
-            register_superclasses_in_env(&parent_ident_node, ienv, cdefs, lexer)?;
+            register_superclasses_in_env(&parent_ident_node, ienv, i_registered, cdefs, lexer)?;
             let mut superclasses = ienv.get(parent_ident).unwrap().clone();
             superclasses.insert(parent_ident.to_string());
             superclasses
@@ -782,9 +787,12 @@ fn class_env(cdefs: &Vec<ast::Node<ast::ClassDef>>, lexer: &dyn Lexer<u32>) -> R
             }
         }
     }
+    let mut i_registered = HashSet::new();
+    for cdef in cdefs {
+        register_superclasses_in_env(&cdef.data().0, &mut ienv, &mut i_registered, &cdefs_map, lexer)?;
+    }
     for cdef in cdefs {
         register_class_in_env(&cdef.data().0, &mut cenv, &cdefs_map, &ienv, lexer)?;
-        register_superclasses_in_env(&cdef.data().0, &mut ienv, &cdefs_map, lexer)?;
     }
     Ok((cenv, ienv))
 }
