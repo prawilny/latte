@@ -69,10 +69,6 @@ static VTABLE_IDENT: &str = "__vtable";
 
 static ASM_ADDR_SIZE_DIR: &str = ".quad";
 
-// TODO: sprawdzić, czy stos jest posprzątany (nie ma śmieci przy obliczaniu wyrażeń), żeby wołanie funkcji działało
-// TODO: sprawdzić "_", unimplemented!, unreachable!
-// TODO: porównywanie stringów?
-
 type VOffsets = Vec<ast::Ident>;
 type FOffsets = Vec<(ast::Ident, ast::Ident)>;
 type CEnv = HashMap<ast::Ident, (VOffsets, FOffsets)>;

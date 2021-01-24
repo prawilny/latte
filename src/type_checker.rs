@@ -1,7 +1,3 @@
-// TODO: sprawdzić "_", unimplemented!, unreachable!
-// TODO: priorytet '.'
-// TODO: sprawdzenie gramatyki
-
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
 use crate::Span;
@@ -328,34 +324,30 @@ fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, cfienv: &CFIEnv, lexer: 
                 ))
             }
         },
-        ast::Expr::Mthd(expr_node, ident_node, arg_nodes) => {
-            match check_expr(expr_node, venv, cfienv, lexer)? {
-                ast::Prim::Class(class_name) => {
-                    let members = match cfienv.0.get(&class_name) {
-                        None => return Err(no_such_msg(lexer, ident_node.span(), "class")),
-                        Some(members) => members,
-                    };
-                    match members.get(ident_node.data()) {
-                        None => return Err(no_such_msg(lexer, ident_node.span(), "member")),
-                        Some(ast::Type::Var(_)) => {
-                            return Err(wrap_error_msg(lexer, expr_node.span(), "right side of . is a field"))
-                        }
-                        Some(ast::Type::Fun(fun_type)) => {
-                            let mut arg_nodes_with_self_ref: Vec<&ast::Node<ast::Expr>> = arg_nodes.iter().collect();
-                            arg_nodes_with_self_ref.insert(0, expr_node);
-                            check_call(fun_type, ident_node, &arg_nodes_with_self_ref, venv, cfienv, lexer)?
-                        }
+        ast::Expr::Mthd(expr_node, ident_node, arg_nodes) => match check_expr(expr_node, venv, cfienv, lexer)? {
+            ast::Prim::Class(class_name) => {
+                let members = match cfienv.0.get(&class_name) {
+                    None => return Err(no_such_msg(lexer, ident_node.span(), "class")),
+                    Some(members) => members,
+                };
+                match members.get(ident_node.data()) {
+                    None => return Err(no_such_msg(lexer, ident_node.span(), "member")),
+                    Some(ast::Type::Var(_)) => return Err(wrap_error_msg(lexer, expr_node.span(), "right side of . is a field")),
+                    Some(ast::Type::Fun(fun_type)) => {
+                        let mut arg_nodes_with_self_ref: Vec<&ast::Node<ast::Expr>> = arg_nodes.iter().collect();
+                        arg_nodes_with_self_ref.insert(0, expr_node);
+                        check_call(fun_type, ident_node, &arg_nodes_with_self_ref, venv, cfienv, lexer)?
                     }
                 }
-                non_class_prim => {
-                    return Err(wrap_error_msg(
-                        lexer,
-                        expr_node.span(),
-                        &format!("left side of . is a {:?}", non_class_prim),
-                    ))
-                }
             }
-        }
+            non_class_prim => {
+                return Err(wrap_error_msg(
+                    lexer,
+                    expr_node.span(),
+                    &format!("left side of . is a {:?}", non_class_prim),
+                ))
+            }
+        },
         ast::Expr::Fun(ident_node, arg_nodes) => {
             let fun_type = match cfienv.1.get(ident_node.data()) {
                 None => return Err(wrap_error_msg(lexer, ident_node.span(), "use of undeclared function")),
@@ -524,9 +516,7 @@ fn check_stmt(
             }
             for item_node in item_nodes {
                 let (var_name, var_prim) = match item_node.data() {
-                    ast::Item::NoInit(ident_node) => {
-                        (ident_node.data().clone(), decl_prim.clone())
-                    }
+                    ast::Item::NoInit(ident_node) => (ident_node.data().clone(), decl_prim.clone()),
                     ast::Item::Init(ident_node, expr_node) => {
                         (ident_node.data().clone(), check_expr(&expr_node, &venv, cfienv, lexer)?)
                     }
