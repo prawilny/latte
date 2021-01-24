@@ -389,14 +389,17 @@ fn compile_var_ptr(
     } else {
         let class_name = class_name_option.clone().unwrap();
         let self_offset = vstack_get_offset(vstack, &SELF_IDENT.to_string());
-        let field_offset = cenv_get_field_offset(cenv, &class_name, var_ident);
 
         output.text.push(format!("{} {}, {}", OP_MOV, REG_AUX, REG_BASE));
         output.text.push(format!("{} {}, {}", OP_SUB, REG_AUX, self_offset));
         output
             .text
             .push(format!("{} {}, {} ptr [{}]", OP_MOV, REG_MAIN, MEM_WORD_SIZE, REG_AUX));
-        output.text.push(format!("{} {}, {}", OP_ADD, REG_MAIN, field_offset));
+
+        if var_ident != SELF_IDENT {
+            let field_offset = cenv_get_field_offset(cenv, &class_name, var_ident);
+            output.text.push(format!("{} {}, {}", OP_ADD, REG_MAIN, field_offset));
+        }
         push_wrapper(REG_MAIN, None, vstack, output);
     }
 }
