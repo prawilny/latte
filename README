@@ -22,7 +22,9 @@ Jedyne dozwolone jawne rzutowania są na null: `( klasa )null`.
 Wszystkie inne rzutowania robione są niejawnie.
 
 Wszystkie metody obiektów są wirtualne (nie ma możliwości zdefiniowania metody
-nienadpisywalnej w podklasach)
+nienadpisywalnej w podklasach).
+
+W stringach nie może pojawić się symbol '"' (nawet w postaci '\"').
 
 Uwagi do kompilatora
 ========================================
