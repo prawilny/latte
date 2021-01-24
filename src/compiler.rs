@@ -542,7 +542,7 @@ fn compile_stmt(
     }
 }
 
-// na stosie jest wartość (która dla obiektów i stringów jest wskaźnikiem)
+// na czubku stosu jest wartość (która dla obiektów i stringów jest wskaźnikiem)
 fn compile_expr_val(
     expr: &ast::Node<ast::Expr>,
     vstack: &mut VStack,
@@ -561,8 +561,8 @@ fn compile_expr_val(
     }
 }
 
-// na stosie jest wartość (która dla obiektów i stingów jest wskaźnikiem)
-//                lub wskaźnik (w przypadku zmiennej lub pola struktury)
+// na czubku stosu jest wartość (która dla obiektów i stingów jest wskaźnikiem)
+//                      lub wskaźnik (w przypadku zmiennej lub pola struktury)
 fn compile_expr_ptr(
     expr: &ast::Node<ast::Expr>,
     vstack: &mut VStack,
@@ -671,7 +671,7 @@ fn compile_expr_ptr(
             push_wrapper(result_reg, None, vstack, output);
         }
         ast::Expr::And(expr1, expr2) | ast::Expr::Or(expr1, expr2) => {
-            let skipping_value = match expr.data() {
+            let lazy_value = match expr.data() {
                 ast::Expr::And(_, _) => VAL_FALSE,
                 ast::Expr::Or(_, _) => VAL_TRUE,
                 _ => unreachable!(),
@@ -686,9 +686,10 @@ fn compile_expr_ptr(
                 .text
                 .push(format!("{} {}, {} ptr [{}]", OP_MOV, REG_MAIN, MEM_WORD_SIZE, REG_STACK));
 
-            output.text.push(format!("{} {}, {}", OP_CMP, REG_MAIN, skipping_value));
+            output.text.push(format!("{} {}, {}", OP_CMP, REG_MAIN, lazy_value));
             output.text.push(format!("{} {}", JMP_EQ, or_and_label_after));
 
+            // TODO: fix
             vstack_shrink_stack(vstack, 1, output);
             compile_expr_val(&expr2, vstack, cenv, labels, output, class_name_option);
             output.text.push(format!("{}:", or_and_label_after));
@@ -753,7 +754,7 @@ fn compile_expr_ptr(
                     0
                 };
 
-                for arg_expr_node in std::iter::once(&(**lhs_node)).chain(arg_expr_nodes.iter()).rev() {
+                for arg_expr_node in std::iter::once(&(**lhs_node)).chain(arg_expr_nodes.iter()).rev() { // self
                     compile_expr_val(arg_expr_node, vstack, cenv, labels, output, class_name_option);
                 }
                 for i in 0..std::cmp::min(ARG_REGS.len(), args_count) {

@@ -32,6 +32,7 @@ fn cmp_prims(expected: &ast::Prim, actual: &ast::Prim, ienv: &IEnv) -> bool {
     }
 }
 
+// wykorzystywane tylko do porównywania typów metod
 fn cmp_types(expected: &ast::Type, actual: &ast::Type, ienv: &IEnv) -> bool {
     match (expected, actual) {
         (ast::Type::Var(exp_prim), ast::Type::Var(act_prim)) => cmp_prims(exp_prim, act_prim, ienv),
@@ -705,6 +706,7 @@ fn register_superclasses_in_env(
     Ok(())
 }
 
+// unwrap, bo istnienie klas, po których klasy dziedziczą jest sprawdzane w `register_superclasses`
 fn register_class_in_env(
     ident_node: &ast::Node<ast::Ident>,
     cenv: &mut CEnv,
@@ -712,7 +714,7 @@ fn register_class_in_env(
     ienv: &IEnv,
     lexer: &dyn Lexer<u32>,
 ) -> Result<(), String> {
-    let cdef = cdefs.get(ident_node.data()).unwrap(); // unwrap, bo register_superclasses już sprawdziło
+    let cdef = cdefs.get(ident_node.data()).unwrap();
     let (self_ident_node, parent_ident_node_option, field_nodes, method_nodes) = cdef.data();
 
     if cenv.get(self_ident_node.data()).is_some() {
