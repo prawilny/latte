@@ -1,6 +1,6 @@
 *
-! *.lat
-! *.output
-! *.input
+! **/*.lat
+! **/*.output
+! **/*.input
 ! .gitignore
 
