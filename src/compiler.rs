@@ -71,16 +71,11 @@ static ASM_ADDR_SIZE_DIR: &str = ".quad";
 
 // TODO: sprawdzić, czy stos jest posprzątany (nie ma śmieci przy obliczaniu wyrażeń), żeby wołanie funkcji działało
 // TODO: sprawdzić "_", unimplemented!, unreachable!
-// TODO: test kompilatora na większej wersji niedziałającego testu backendu (ten z nadpisywaniem rejestrów, w których przekazywane są argumenty)
-// TODO: sprawdzić, czy gdzieś wstawienie obiektu nie psuje
-// TODO: clippy może wskazać głupie błędy
-// TODO: poprawki czyszczenia stosu (jest 1 pop() dla dowolnego var: ussize chyba)
 // TODO: porównywanie stringów?
-// TODO: while vs do while
 // TODO: obsługa samego `self`?
-// TODO: README: sprawdzenie + może uwaga o `self`
-// TODO: czy get_prim() na primach coś poprawia?
 // TODO: `self` w gramatyce powinien mieć przypisany specjalny identyfikator
+// TODO: README: sprawdzenie i może uwaga o `self`
+// TODO: README: informacje o domyślnej wartości obiektów - null
 
 type VOffsets = Vec<ast::Ident>;
 type FOffsets = Vec<(ast::Ident, ast::Ident)>;
@@ -149,8 +144,7 @@ fn vstack_rename_top(vstack: &mut VStack, new_name: ast::Ident) {
 }
 
 fn vstack_shrink_stack(vstack: &mut VStack, vars: usize, output: &mut Output) {
-    // TODO: n razy pop?
-    vstack.0.pop();
+    vstack.0.truncate(vstack.0.len() - vars);
     output.text.push(code_shrink_stack(vars));
 }
 
@@ -358,7 +352,6 @@ fn compile_fn(
 
     compile_block(block_node.data(), &mut vstack, cenv, labels, output, class_name_option);
 
-    // TODO: czy to czyszczenie stosu jest potrzebne?
     vstack_shrink_stack(&mut vstack, std::cmp::min(ARG_REGS.len(), arg_names.len()), output);
 
     output.text.extend(code_epilogue());
@@ -628,8 +621,6 @@ fn compile_expr_ptr(
             } else {
                 0
             };
-            // TODO: nadpisywany rejestr jeśli przy obliczaniu wartości wyrażenia wywołujemy funkcję
-            // TODO: policzyć wszystkie argumenty, a potem dopiero robić pop()
             for arg_expr_node in arg_expr_nodes.iter().rev() {
                 compile_expr_val(arg_expr_node, vstack, cenv, labels, output, class_name_option);
             }
@@ -737,7 +728,6 @@ fn compile_expr_ptr(
             push_wrapper(REG_MAIN, None, vstack, output);
         }
         ast::Expr::New(ident_node) => {
-            // TODO: inicjalizacja stringów na puste
             let object_size = cenv.get(ident_node.data()).unwrap().0.len() * VAR_SIZE;
             output.text.push(format!("{} {}, {}", OP_MOV, ARG_REGS[0], object_size));
             output
