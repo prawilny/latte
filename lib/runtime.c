@@ -6,7 +6,7 @@
 #define i64 long
 #define BUF_SIZE 256
 
-_Static_assert(sizeof(i64) == 8, "");
+_Static_assert(sizeof(i64) == 8, "is this a 64-bit machine?");
 
 static char buf[BUF_SIZE];
 

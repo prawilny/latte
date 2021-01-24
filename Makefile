@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 PATH := $(CURDIR)/.cargo/bin:$(PATH)
 
-all: $(CURDIR)/.cargo/bin/cargo
+all: $(CURDIR)/.cargo/bin/cargo lib/runtime.o
 	CARGO_HOME=$(CURDIR)/.cargo RUSTUP_HOME=$(CURDIR)/.rustup cargo build --release
 
 $(CURDIR)/.cargo/bin/cargo:
@@ -10,3 +10,6 @@ $(CURDIR)/.cargo/bin/cargo:
 clean:
 	if command -v cargo; then CARGO_HOME=$(CURDIR)/.cargo RUSTUP_HOME=$(CURDIR)/.rustup cargo clean; fi;
 	cd $(CURDIR) && rm -rf .rustup .cargo
+
+lib/runtime.o:
+	cd lib && $(MAKE)
