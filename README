@@ -56,11 +56,11 @@ kompilator:
 
 Zależności
 ========================================
-biblioteka grmtools (https://softdevteam.github.io/grmtools/master/book/quickstart.html):
+ - pakiet static_assertions (https://docs.rs/static_assertions/1.1.0/static_assertions/)
+ - biblioteka grmtools (https://softdevteam.github.io/grmtools/master/book/quickstart.html):
     - cfgrammar,
     - lrlex,
     - lrpar,
-pakiet static_assertions (https://docs.rs/static_assertions/1.1.0/static_assertions/)
 
 
 Struktura projektu:
