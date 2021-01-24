@@ -149,6 +149,7 @@ fn vstack_rename_top(vstack: &mut VStack, new_name: ast::Ident) {
 }
 
 fn vstack_shrink_stack(vstack: &mut VStack, vars: usize, output: &mut Output) {
+    // TODO: n razy pop?
     vstack.0.pop();
     output.text.push(code_shrink_stack(vars));
 }

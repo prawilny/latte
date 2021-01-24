@@ -7,13 +7,7 @@
 // TODO: wypełnianie typów wyrażeń w instrukcjach
 // TODO: zmiana Class("C") na cokolwiek innego
 // TODO: czy obsługa self jest poprawna?
-// TODO: któryś unwrap() się wywala
 // TODO: README: null tylko typowany
-// TODO: wykryć cykliczne dziedziczenie
-// TODO: wykryć dziedziczenie po nieistniejącym
-// TODO: upewnić się, że wszystkie wyrażenia mają ustawione primy
-// TODO: set_prim wszystkim
-// TODO: czy typ zmiennym dać? chyba jest już przechowywany w VEnv...
 
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
