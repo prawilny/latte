@@ -291,7 +291,7 @@ fn expr_int(expr: &ast::Node<ast::Expr>, lexer: &dyn Lexer<u32>) -> Result<Optio
 fn check_call(
     fun: &ast::FunType,
     ident_node: &ast::Node<ast::Ident>,
-    arg_nodes: &Vec<ast::Node<ast::Expr>>,
+    arg_nodes: &Vec<&ast::Node<ast::Expr>>,
     venv: &VEnv,
     cfienv: &CFIEnv,
     lexer: &dyn Lexer<u32>,
@@ -354,9 +354,9 @@ fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, cfienv: &CFIEnv, lexer: 
                             return Err(wrap_error_msg(lexer, expr_node.span(), "right side of . is a field"))
                         }
                         Some(ast::Type::Fun(fun_type)) => {
-                            let mut arg_nodes_with_self = arg_nodes.clone();
-                            arg_nodes_with_self.insert(0, *(expr_node.clone())); // this
-                            check_call(fun_type, ident_node, &arg_nodes_with_self, venv, cfienv, lexer)?
+                            let mut arg_nodes_with_self_ref: Vec<&ast::Node<ast::Expr>> = arg_nodes.iter().collect();
+                            arg_nodes_with_self_ref.insert(0, expr_node);
+                            check_call(fun_type, ident_node, &arg_nodes_with_self_ref, venv, cfienv, lexer)?
                         }
                     }
                 }
@@ -374,7 +374,8 @@ fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, cfienv: &CFIEnv, lexer: 
                 None => return Err(wrap_error_msg(lexer, ident_node.span(), "use of undeclared function")),
                 Some(ft) => ft,
             };
-            check_call(fun_type, ident_node, arg_nodes, venv, cfienv, lexer)?
+            let arg_nodes_refs = arg_nodes.iter().collect();
+            check_call(fun_type, ident_node, &arg_nodes_refs, venv, cfienv, lexer)?
         }
         ast::Expr::Var(ident_node) => match venv_get(venv, ident_node.data()) {
             Some(prim) => prim,

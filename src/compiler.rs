@@ -78,8 +78,9 @@ static ASM_ADDR_SIZE_DIR: &str = ".quad";
 // TODO: porównywanie stringów?
 // TODO: while vs do while
 // TODO: obsługa samego `self`?
-// TODO: README
+// TODO: README: sprawdzenie + może uwaga o `self`
 // TODO: czy get_prim() na primach coś poprawia?
+// TODO: `self` w gramatyce powinien mieć przypisany specjalny identyfikator
 
 type VOffsets = Vec<ast::Ident>;
 type FOffsets = Vec<(ast::Ident, ast::Ident)>;
