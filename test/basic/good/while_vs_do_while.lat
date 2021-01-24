@@ -1,0 +1,6 @@
+int main() {
+    while(false) {
+        printString("BAD");
+    }
+    return 1;
+}

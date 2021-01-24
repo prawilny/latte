@@ -1,0 +1,20 @@
+class C {
+    C c;
+
+    void print() {
+        if (c == (C)null) {
+            printInt(123);
+        } else {
+            c.print();
+        }
+    }
+}
+
+int main() {
+    C c = new C;
+    c.c = new C;
+
+    c.print();
+
+    return 0;
+}
