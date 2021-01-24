@@ -11,8 +11,12 @@ w łańcucach ifów o pojedynczych instrukcjach wymusza taką samą liczbę 'if'
 właściwą instrukcją jest `if (true) if (false) ; else ; else ;`,
 niewłaściwą zaś: `if (true) if (false) ; else ;`.
 
+Domyślną wartością obiektów jest `null`.
+
+Wszystkie użycia literału `null` muszą być typowane `( klasa )null`.
+
 Dla uproszczenia kodu ograniczyłem casty (przy zachowaniu kompatybilności z publicznymi testami):
-")null" stanowi pojedynczy token, więc nie można zrobić `( class ) null`.
+")null" stanowi pojedynczy token, więc nie można zrobić `( klasa ) null`.
 
 Jedyne dozwolone jawne rzutowania są na null: `( klasa )null`.
 Wszystkie inne rzutowania robione są niejawnie.

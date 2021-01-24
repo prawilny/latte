@@ -1,13 +1,6 @@
 // TODO: sprawdzić "_", unimplemented!, unreachable!
-// TODO: upewnić się, że dodanie obiektów nie wymaga zmiany niczego więcej
 // TODO: priorytet '.'
 // TODO: sprawdzenie gramatyki
-// TODO: sprawdzenie uwagi o castach w README
-// TODO: wypełnienie typów nowych wyrażeń
-// TODO: wypełnianie typów wyrażeń w instrukcjach
-// TODO: zmiana Class("C") na cokolwiek innego
-// TODO: czy obsługa self jest poprawna?
-// TODO: README: null tylko typowany
 
 use crate::latte_y as ast;
 use crate::latte_y::IntType;
@@ -465,7 +458,7 @@ fn check_expr(expr: &ast::Node<ast::Expr>, venv: &VEnv, cfienv: &CFIEnv, lexer: 
             let acceptable_prims = vec![
                 (ast::Prim::Bool, ast::Prim::Bool),
                 (ast::Prim::Int, ast::Prim::Int),
-                (ast::Prim::Class("C".to_string()), ast::Prim::Class("C".to_string())),
+                (ast::Prim::Class("".to_string()), ast::Prim::Class("".to_string())),
             ];
             match (
                 check_expr(expr1_node, venv, cfienv, lexer)?,
@@ -531,7 +524,9 @@ fn check_stmt(
             }
             for item_node in item_nodes {
                 let (var_name, var_prim) = match item_node.data() {
-                    ast::Item::NoInit(ident_node) => (ident_node.data().clone(), decl_prim.clone()),
+                    ast::Item::NoInit(ident_node) => {
+                        (ident_node.data().clone(), decl_prim.clone())
+                    }
                     ast::Item::Init(ident_node, expr_node) => {
                         (ident_node.data().clone(), check_expr(&expr_node, &venv, cfienv, lexer)?)
                     }

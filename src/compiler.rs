@@ -72,10 +72,6 @@ static ASM_ADDR_SIZE_DIR: &str = ".quad";
 // TODO: sprawdzić, czy stos jest posprzątany (nie ma śmieci przy obliczaniu wyrażeń), żeby wołanie funkcji działało
 // TODO: sprawdzić "_", unimplemented!, unreachable!
 // TODO: porównywanie stringów?
-// TODO: obsługa samego `self`?
-// TODO: `self` w gramatyce powinien mieć przypisany specjalny identyfikator
-// TODO: README: sprawdzenie i może uwaga o `self`
-// TODO: README: informacje o domyślnej wartości obiektów - null
 
 type VOffsets = Vec<ast::Ident>;
 type FOffsets = Vec<(ast::Ident, ast::Ident)>;
